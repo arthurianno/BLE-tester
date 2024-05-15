@@ -111,6 +111,9 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
         )
         Button(
             onClick = {
+                if(scanViewModel.deviceList.isNotEmpty()){
+                    scanViewModel.clearData()
+                }
                 val start = startRange.toLongOrNull()
                 val end = endRange.toLongOrNull()
 
