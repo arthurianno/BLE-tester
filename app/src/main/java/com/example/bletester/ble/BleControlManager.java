@@ -1,13 +1,24 @@
 package com.example.bletester.ble;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.os.Build;
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+
+import com.example.bletester.EntireCheck;
+
+import com.example.bletester.viewModels.ScanViewModel;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.UUID;
+
 import no.nordicsemi.android.ble.BleManager;
 import no.nordicsemi.android.ble.callback.DataReceivedCallback;
 
@@ -23,10 +34,54 @@ public class BleControlManager extends BleManager {
         super(context);
     }
 
+
+
+
+
     @NonNull
     @Override
     protected BleManagerGattCallback getGattCallback() {
         return new BleControlManagerGattCallBacks();
+    }
+
+
+    public void sendCommand(String command, EntireCheck entireCheck) {
+        if (isConnected() && controlRequest != null) {
+            BluetoothGattCharacteristic characteristic = controlRequest;
+            ScanViewModel.Companion.getEntireCheckQueue().add(entireCheck);
+            if (characteristic != null) {
+                byte[] data = command.getBytes();
+                writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                        .done(device -> {
+                            Log.e("BleControlManager", "Command sent: " + command);
+                        })
+                        .fail((device, status) -> Log.e("BleControlManager", "Failed to send command: " + status))
+                        .enqueue();
+            } else {
+                Log.e("BleControlManager", "Control Request characteristic is null");
+            }
+        } else {
+            Log.e("BleControlManager", "Device is not connected");
+        }
+    }
+    public void sendPinCommand(String pinCode, EntireCheck entireCheck) {
+        if (isConnected() && controlRequest != null) {
+            BluetoothGattCharacteristic characteristic = controlRequest;
+            ScanViewModel.Companion.getEntireCheckQueue().add(entireCheck);
+            if (characteristic != null) {
+                // Добавляем префикс "pin." к пин-коду
+                String formattedPinCode = "pin." + pinCode;
+                byte[] data = formattedPinCode.getBytes();
+                writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                        .done(device -> {
+                           Log.e("BleControlManager", "PIN command sent");
+                        })
+                        .fail((device, status) -> {
+                            Log.e("BleControlManager", "PIN command incorrect");
+                        })
+                        .enqueue();
+            }
+        }
     }
 
     class BleControlManagerGattCallBacks extends BleManagerGattCallback {
@@ -57,6 +112,7 @@ public class BleControlManager extends BleManager {
 
         }
 
+        @SuppressLint("MissingPermission")
         private final DataReceivedCallback notificationCallback = (device, data) -> {
             // Обработка данных, полученных от controlResponse
             // data - это массив байтов, которые представляют ответ от устройства
@@ -67,7 +123,56 @@ public class BleControlManager extends BleManager {
 
         @RequiresApi(api = Build.VERSION_CODES.O)
         private void handleResponseData(byte[] data) {
+            EntireCheck entireCheck1 = ScanViewModel.Companion.getEntireCheckQueue().poll();
+            if (entireCheck1 == null) {
+                Log.d("BleControlManager", "Entire is null");
+                return;
+            }
+            switch (entireCheck1){
+                case HW_VER:
+                    Log.d("BleControlManager","data " + Arrays.toString(data));
+                    handleHwVer(data);
+                    break;
+                case default_command:
+                    Log.d("BleControlManager","data " + Arrays.toString(data));
+                    handleDefaultCommand(data);
+                    break;
+                case PIN_C0DE:
+                    Log.d("BleControlManager","data " + Arrays.toString(data));
+                    handlePinCodeResult(data);
+
+            }
+        }
+        private void handleHwVer(byte[] data) {
+            String hwVer = new String(Arrays.copyOfRange(data, 4, 20), StandardCharsets.US_ASCII).trim().replaceAll("[\\x00-\\x1F]", "");
+            Log.d("BleControlManager", "updating hwVer " + hwVer);
+            //DataItem dataItemHwVer = new DataItem(hwVer, bytesToHex(data), "HW VERSION", false,0x4C,0x10,DataType.CHAR_ARRAY);
+            //listOfDataItem.add(dataItemHwVer);
+            String lastFourDigits = hwVer.substring(Math.max(0, hwVer.length() - 4));
+            Log.d("BleControlManager", "Last four digits: " + lastFourDigits);
+            sendCommand("ble.off",EntireCheck.default_command);
+        }
+
+        @SuppressLint("WrongConstant")
+        private void handleDefaultCommand(byte[] data) {
+            String defaultResponse = new String(data, StandardCharsets.UTF_8);
+            Log.d("BleControlManager", "updating hwVer " + defaultResponse);
+            if(defaultResponse.contains("ble.ok")){
+                disconnect().enqueue();
+            }
 
         }
+        private void handlePinCodeResult(byte[] data){
+            String pinResponse = new String(data, StandardCharsets.UTF_8);
+            if(pinResponse.contains("pin.ok")){
+                Log.d("BleControlManager", "Pin code is correct");
+                sendCommand("version", EntireCheck.default_command);
+            }
+        }
     }
+
 }
+
+
+
+

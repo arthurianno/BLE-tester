@@ -16,6 +16,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var bluetoothAdapter: BluetoothAdapter
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             AppNavigation(
                 onBluetoothStateChanged = {
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+
 
     override fun onStart() {
         super.onStart()

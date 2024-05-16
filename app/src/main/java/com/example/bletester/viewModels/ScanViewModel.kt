@@ -12,14 +12,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.example.bletester.EntireCheck
+import com.example.bletester.ble.BleControlManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.LinkedList
+import java.util.Queue
 import javax.inject.Inject
+
 
 @HiltViewModel
 @SuppressLint("StaticFieldLeak")
-class ScanViewModel @Inject constructor () : ViewModel() {
+class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
 
-    var deviceList by mutableStateOf<List<BluetoothDevice>>(emptyList())
+    var deviceList by mutableStateOf<MutableList<BluetoothDevice>>(mutableListOf())
         private set
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
@@ -28,6 +33,8 @@ class ScanViewModel @Inject constructor () : ViewModel() {
     private var scanning = false
     private val handler = android.os.Handler()
     private val SCAN_PERIOD: Long = 10000
+    private var isConnecting = false
+
 
 
     init {
@@ -66,6 +73,7 @@ class ScanViewModel @Inject constructor () : ViewModel() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
 
+
             val device = result.device
             val deviceName = device.name ?: return // If device name is null, skip
             val startRangeLastFourDigits = startRange.toString().takeLast(4)
@@ -80,18 +88,45 @@ class ScanViewModel @Inject constructor () : ViewModel() {
                 // Check if last four digits are valid numbers
                 if (satelliteNumber != null) {
                     // Check if satellite number is within the specified range
-                    if (satelliteNumber.toString() in startRangeLastFourDigits..endRangeLastFourDigits) {
                         if(!deviceList.any{it.address == device.address}){
                             Log.e("ScanViewModel", "device $deviceName")
-                            deviceList = deviceList + listOf(device)
+                            deviceList.add(device)
                         }
-
-                    }
                 }
             }
         }
     }
-    fun clearData() {
-        deviceList = emptyList()
+
+    @SuppressLint("MissingPermission")
+    fun connectToDeviceSequentially(){
+        if(!isConnecting && deviceList.isNotEmpty()) {
+            isConnecting = true
+            val device = deviceList.removeAt(0)
+
+            bleControlManager.connect(device)
+                .done {
+                    Log.d("BleControlManager", "Подключено к устройству ${device.name}")
+                    bleControlManager.sendPinCommand("master",EntireCheck.PIN_C0DE)
+                }
+                .fail { device, status ->
+                    isConnecting = false
+                    Log.e(
+                        "BleControlManager",
+                        "Не удалось подключиться к устройству ${device.name}: $status"
+                    )
+                }
+                .enqueue()
+        }else{
+            Log.d("BleControlManager", "Все устройства обработаны")
+        }
     }
+    fun clearData() {
+        deviceList.clear()
+
+    }
+
+    companion object{
+        val entireCheckQueue: Queue<EntireCheck> = LinkedList()
+    }
+
 }

@@ -28,7 +28,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideBleControlManager(bluetoothAdapter: BluetoothAdapter): BleControlManager {
+    fun provideBleControlManager(bluetoothAdapter: BluetoothAdapter,@ApplicationContext context: Context): BleControlManager {
         return BleControlManager(context)
     }
 }
