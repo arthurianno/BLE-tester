@@ -8,9 +8,6 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.example.bletester.EntireCheck
 import com.example.bletester.ble.BleCallbackEvent
@@ -21,21 +18,21 @@ import java.util.Queue
 import javax.inject.Inject
 
 
+@Suppress("DEPRECATION")
 @HiltViewModel
 @SuppressLint("StaticFieldLeak")
 class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
 
      var deviceQueue: Queue<BluetoothDevice> = LinkedList()
-    var isQueueEmpty by mutableStateOf(deviceQueue.isEmpty())
-        private set
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
     private val filters: List<ScanFilter>
     private var scanning = false
     private val handler = android.os.Handler()
-    private val SCAN_PERIOD: Long = 10000
+    private val scanPeriod: Long = 10000
     private var isConnecting = false
+    private val processedDevices = mutableSetOf<String>()
 
 
 
@@ -56,41 +53,39 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
         )
 
     @SuppressLint("MissingPermission")
-    fun scanLeDevice(startRange: Long, endRange: Long) {
+    fun scanLeDevice() {
         if (!scanning) {
             handler.postDelayed({
                 scanning = false
-                bluetoothLeScanner?.stopScan(leScanCallback(startRange, endRange))
-            }, SCAN_PERIOD)
+                bluetoothLeScanner?.stopScan(leScanCallback())
+            }, scanPeriod)
             scanning = true
-            bluetoothLeScanner?.startScan(leScanCallback(startRange, endRange))
+            bluetoothLeScanner?.startScan(leScanCallback())
         } else {
             scanning = false
-            bluetoothLeScanner?.stopScan(leScanCallback(startRange, endRange))
+            bluetoothLeScanner?.stopScan(leScanCallback())
         }
     }
 
-    private fun leScanCallback(startRange: Long, endRange: Long) = object : ScanCallback() {
+    private fun leScanCallback() = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
 
-
             val device = result.device
             val deviceName = device.name ?: return // If device name is null, skip
-            val startRangeLastFourDigits = startRange.toString().takeLast(4)
-            val endRangeLastFourDigits = endRange.toString().takeLast(4)
 
+            // List of last four digits to check
+            val validLastFourDigits = listOf("0001", "0002", "0325")
 
             // Check if device name contains "Sat"
             if (deviceName.contains("Satellite")) {
                 val lastFourDigits = deviceName.takeLast(4)
-                val satelliteNumber = lastFourDigits.toIntOrNull()
 
-                // Check if last four digits are valid numbers
-                if (satelliteNumber != null) {
-                    // Check if satellite number is within the specified range
-                    if(!deviceQueue.any{it.address == device.address}){
+                // Check if last four digits are in the valid list
+                if (lastFourDigits in validLastFourDigits) {
+                    // Check if device is not already processed
+                    if (!processedDevices.contains(device.address)) {
                         Log.e("ScanViewModel", "device $deviceName")
                         deviceQueue.add(device)
                         if(!isConnecting) {
@@ -99,7 +94,14 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
                         bleControlManager.setBleCallbackEvent(object :BleCallbackEvent{
                             override fun onHandleCheck() {
                                 isConnecting = false
+                            }
 
+                            override fun onVersionCheck(version: String) {
+                                if(version == lastFourDigits){
+                                    Log.e("ScanViewModel","Серийный номер устройства сходится!")
+                                }else{
+                                    Log.e("ScanViewModel","Серийный номер устройства не сходится!")
+                                }
                             }
                         })
                     }
@@ -116,6 +118,7 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
             val device = deviceQueue.poll()
 
             device?.let {
+                processedDevices.add(it.address)
                 bleControlManager.connect(it)
                     .done {
                         Log.d("BleControlManager", "Подключено к устройству ${device.name}")
@@ -139,11 +142,6 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
     fun clearData() {
         deviceQueue.clear()
 
-    }
-
-    fun onDeviceProcessed() {
-        isConnecting = false
-        connectToDeviceSequentially()
     }
 
     companion object{

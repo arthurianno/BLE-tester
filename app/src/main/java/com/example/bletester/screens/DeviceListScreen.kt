@@ -122,7 +122,7 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
                 if (start != null && end != null && start <= end) {
                     // Запустить сканирование с заданным диапазоном
 
-                    scanViewModel.scanLeDevice(start, end)
+                    scanViewModel.scanLeDevice()
                 } else {
                     Log.e("DeviceListScreen","Data incorrect ")
                 }
