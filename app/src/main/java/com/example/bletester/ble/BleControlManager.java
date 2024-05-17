@@ -145,12 +145,10 @@ public class BleControlManager extends BleManager {
         }
         private void handleHwVer(byte[] data) {
             String hwVer = new String(Arrays.copyOfRange(data, 4, 20), StandardCharsets.US_ASCII).trim().replaceAll("[\\x00-\\x1F]", "");
-            Log.d("BleControlManager", "updating version " + hwVer);
             //DataItem dataItemHwVer = new DataItem(hwVer, bytesToHex(data), "HW VERSION", false,0x4C,0x10,DataType.CHAR_ARRAY);
             //listOfDataItem.add(dataItemHwVer);
-            String lastFourDigits = hwVer.substring(Math.max(0, hwVer.length() - 4));
-            bleCallbackEvent.onVersionCheck(lastFourDigits);
-            Log.d("BleControlManager", "Last four digits: " + lastFourDigits);
+            bleCallbackEvent.onVersionCheck(hwVer);
+            Log.d("BleControlManager", "VERSION: " + hwVer);
             sendCommand("ble.off",EntireCheck.default_command);
         }
 

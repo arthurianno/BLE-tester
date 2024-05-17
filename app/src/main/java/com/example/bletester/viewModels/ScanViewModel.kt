@@ -23,7 +23,8 @@ import javax.inject.Inject
 @SuppressLint("StaticFieldLeak")
 class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
 
-     var deviceQueue: Queue<BluetoothDevice> = LinkedList()
+    var deviceQueue: Queue<BluetoothDevice> = LinkedList()
+    val foundDevices : MutableList<BluetoothDevice> = LinkedList()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
@@ -87,20 +88,32 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
                     if (!processedDevices.contains(device.address)) {
                         Log.e("ScanViewModel", "device $deviceName")
                         deviceQueue.add(device)
+                        foundDevices.add(device)
                         if(!isConnecting) {
                             connectToDeviceSequentially()
                         }
                         bleControlManager.setBleCallbackEvent(object :BleCallbackEvent{
                             override fun onHandleCheck() {
                                 isConnecting = false
-                            }
 
+                            }
                             override fun onVersionCheck(version: String) {
-                                if(version == lastFourDigits){
-                                    Log.e("ScanViewModel","Серийный номер устройства сходится!")
-                                }else{
-                                    Log.e("ScanViewModel","Серийный номер устройства не сходится!")
-                                }
+                                val versionPrefix = version.first()
+                                val versionNumber = version.substring(1).toIntOrNull()
+                                Log.e("Scan", " $version")
+                                val startNumber = start.drop(1).toIntOrNull()
+                                val endNumber = end.drop(1).toIntOrNull()
+                                versionNumber?.let { versionNum ->
+                                    startNumber?.let { startNum ->
+                                        endNumber?.let { endNum ->
+                                            if (versionNum in startNum..endNum && versionPrefix.toString().contains(letter)) {
+                                                Log.e("ScanViewModel", "Серийный номер устройства в диапазоне!")
+                                            } else {
+                                                Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
+                                            }
+                                        }
+                                    }
+                                } ?: Log.e("ScanViewModel", "Одно или несколько значений равно null")
                             }
                         })
                     }
