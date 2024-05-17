@@ -53,25 +53,24 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
         )
 
     @SuppressLint("MissingPermission")
-    fun scanLeDevice() {
+    fun scanLeDevice(letter: String, start: String, end: String) {
         if (!scanning) {
             handler.postDelayed({
                 scanning = false
-                bluetoothLeScanner?.stopScan(leScanCallback())
+                bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
             }, scanPeriod)
             scanning = true
-            bluetoothLeScanner?.startScan(leScanCallback())
+            bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
         } else {
             scanning = false
-            bluetoothLeScanner?.stopScan(leScanCallback())
+            bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
         }
     }
 
-    private fun leScanCallback() = object : ScanCallback() {
+    private fun leScanCallback(letter: String, start: String, end: String) = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
-
             val device = result.device
             val deviceName = device.name ?: return // If device name is null, skip
 

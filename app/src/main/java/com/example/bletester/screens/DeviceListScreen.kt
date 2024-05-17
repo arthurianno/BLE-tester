@@ -1,4 +1,5 @@
 package com.example.bletester.screens
+
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -10,11 +11,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,47 +45,62 @@ import java.util.LinkedList
 import java.util.Queue
 
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @SuppressLint("MissingPermission")
 @Composable
-fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
+fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val scanViewModel: ScanViewModel = hiltViewModel()
 
-    SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED){ bluetoothState ->
+    SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
-        if(action == BluetoothAdapter.ACTION_STATE_CHANGED){
+        if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
             onBluetoothStateChanged()
         }
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
-    val lyfecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var startRange by remember { mutableStateOf("") }
     var endRange by remember { mutableStateOf("") }
 
-    DisposableEffect(key1 = lyfecycleOwner, effect ={
-        val observer = LifecycleEventObserver{_,event ->
-            if(event == Lifecycle.Event.ON_START){
+    DisposableEffect(key1 = lifecycleOwner, effect = {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
                 permissionState.launchMultiplePermissionRequest()
-                if(permissionState.allPermissionsGranted){
+                if (permissionState.allPermissionsGranted) {
                     Log.e("DeviceListScreen", "All permissions granted!")
                 }
             }
-            if(event == Lifecycle.Event.ON_STOP){
+            if (event == Lifecycle.Event.ON_STOP) {
                 Log.e("DeviceListScreen", "STOP")
             }
         }
-        lyfecycleOwner.lifecycle.addObserver(observer)
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            lyfecycleOwner.lifecycle.removeObserver(observer)
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     })
 
+    val deviceTypes = listOf("SatelliteOnline", "SatelliteVoice", "AnotherDevice")
+    var selectedDeviceType by remember { mutableStateOf(deviceTypes[0]) }
+    var showDropdown by remember { mutableStateOf(false) }
     var deviceQueue by remember { mutableStateOf<Queue<BluetoothDevice>>(LinkedList()) }
+    val isStartRangeValid = remember { mutableStateOf(true) }
+    val isEndRangeValid = remember { mutableStateOf(true) }
+    val deviceTypeToLetter = mapOf(
+        "SatelliteOnline" to "D",
+        "SatelliteVoice" to "E",
+        "AnotherDevice" to "F"
+    )
 
-    // LaunchedEffect to update deviceList when scanViewModel.deviceList changes
+    // LaunchedEffect to update deviceList when scanViewModel.deviceQueue changes
     LaunchedEffect(scanViewModel.deviceQueue) {
         deviceQueue = scanViewModel.deviceQueue
+    }
+    val currentLetter by remember {
+        derivedStateOf {
+            deviceTypeToLetter[selectedDeviceType] ?: ""
+        }
     }
 
     Column(
@@ -87,44 +109,78 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        TextField(
-        value = startRange,
-        onValueChange = {
-            if (it.length <= 12 && it.all { char -> char.isDigit() }) {
-                startRange = it
-            }
-        },
-        label = { Text("Начальное значение") },
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-    )
+        ExposedDropdownMenuBox(expanded = showDropdown, onExpandedChange = { showDropdown = !showDropdown }) {
+            TextField(
+                modifier = Modifier.menuAnchor(),
+                value = selectedDeviceType,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showDropdown) }
+            )
 
-        // TextField для ввода конечного значения диапазона
+            ExposedDropdownMenu(expanded = showDropdown, onDismissRequest = { showDropdown = false }) {
+                deviceTypes.forEachIndexed { index, text ->
+                    DropdownMenuItem(
+                        text = { Text(text = text) },
+                        onClick = {
+                            selectedDeviceType = deviceTypes[index]
+                            showDropdown = false
+                        },
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    )
+                }
+            }
+        }
+        TextField(
+            value = startRange,
+            onValueChange = { newValue ->
+                startRange = newValue
+                isStartRangeValid.value = newValue.matches(Regex("^$currentLetter\\d{10}$"))
+                Log.e("DevicesListScreen", isStartRangeValid.value.toString())
+            },
+            label = { Text("Начальное значение") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text),
+            colors = TextFieldDefaults.colors(
+                unfocusedLabelColor = if (isStartRangeValid.value) Color.Gray else Color.Red,
+                focusedIndicatorColor = if (isStartRangeValid.value) Color.Blue else Color.Red,
+                unfocusedIndicatorColor = if (isStartRangeValid.value) Color.Gray else Color.Red
+            )
+        )
+
         TextField(
             value = endRange,
-            onValueChange = {
-                if (it.length <= 12 && it.all { char -> char.isDigit() }) {
-                    endRange = it
-                }
+            onValueChange = { newValue ->
+                endRange = newValue
+                isEndRangeValid.value = newValue.matches(Regex("^$currentLetter\\d{10}$"))
+                Log.e("DevicesListScreen", isEndRangeValid.value.toString())
+                Log.e("DevicesListScreen", "this is $currentLetter")
             },
             label = { Text("Конечное значение") },
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text),
+            colors = TextFieldDefaults.colors(
+                unfocusedLabelColor = if (isEndRangeValid.value) Color.Gray else Color.Red,
+                focusedIndicatorColor = if (isEndRangeValid.value) Color.Blue else Color.Red,
+                unfocusedIndicatorColor = if (isEndRangeValid.value) Color.Gray else Color.Red
+            )
         )
         Button(
             onClick = {
-                if(scanViewModel.deviceQueue.isNotEmpty()){
+                if (scanViewModel.deviceQueue.isNotEmpty()) {
                     scanViewModel.clearData()
                 }
-                val start = startRange.toLongOrNull()
-                val end = endRange.toLongOrNull()
+                val startNumber = startRange.drop(1)
+                val endNumber = endRange.drop(1)
 
-                if (start != null && end != null && start <= end) {
-                    // Запустить сканирование с заданным диапазоном
+                if (startNumber.length >= 4 && endNumber.length >= 4) {
+                    val startLastFour = startNumber.takeLast(4)
+                    val endLastFour = endNumber.takeLast(4)
 
-                    scanViewModel.scanLeDevice()
+                    // Передаем текущую букву, последние 4 цифры начального и конечного диапазона
+                    scanViewModel.scanLeDevice(currentLetter, startLastFour, endLastFour)
                 } else {
-                    Log.e("DeviceListScreen","Data incorrect ")
+                    Log.e("DeviceListScreen", "Data incorrect")
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -150,10 +206,7 @@ fun DeviceListItem(deviceName: String, deviceAddress: String) {
     Column(
         modifier = Modifier
             .padding(8.dp)
-            .clickable {
-                expanded = !expanded
-            }
-
+            .clickable { expanded = !expanded }
     ) {
         Text(
             text = "Имя устройства: $deviceName",
@@ -167,7 +220,7 @@ fun DeviceListItem(deviceName: String, deviceAddress: String) {
                 text = "MAC-адрес: $deviceAddress",
                 fontFamily = FontFamily.Serif,
                 fontSize = 16.sp,
-                modifier = Modifier.padding(bottom = 4.dp) // Добавляем отступ для разделения мак адресса и названия
+                modifier = Modifier.padding(bottom = 4.dp)
             )
         }
     }
