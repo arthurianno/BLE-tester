@@ -34,6 +34,8 @@ import com.example.bletester.permissions.SystemBroadcastReceiver
 import com.example.bletester.viewModels.ScanViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import java.util.LinkedList
+import java.util.Queue
 
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -72,11 +74,11 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
         }
     })
 
-    var deviceList by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
+    var deviceQueue by remember { mutableStateOf<Queue<BluetoothDevice>>(LinkedList()) }
 
     // LaunchedEffect to update deviceList when scanViewModel.deviceList changes
-    LaunchedEffect(scanViewModel.deviceList) {
-        deviceList = scanViewModel.deviceList
+    LaunchedEffect(scanViewModel.deviceQueue) {
+        deviceQueue = scanViewModel.deviceQueue
     }
 
     Column(
@@ -111,7 +113,7 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
         )
         Button(
             onClick = {
-                if(scanViewModel.deviceList.isNotEmpty()){
+                if(scanViewModel.deviceQueue.isNotEmpty()){
                     scanViewModel.clearData()
                 }
                 val start = startRange.toLongOrNull()
@@ -133,7 +135,7 @@ fun DeviceListScreen(onBluetoothStateChanged:()->Unit) {
         LazyColumn(
             modifier = Modifier.weight(1f)
         ) {
-            items(deviceList) { device ->
+            items(deviceQueue.toList()) { device ->
                 DeviceListItem(deviceName = device.name ?: "Unknown", deviceAddress = device.address)
                 Divider(color = Color.LightGray, thickness = 1.dp)
             }

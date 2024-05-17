@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.example.bletester.EntireCheck
+import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.LinkedList
@@ -24,7 +25,8 @@ import javax.inject.Inject
 @SuppressLint("StaticFieldLeak")
 class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
 
-    var deviceList by mutableStateOf<MutableList<BluetoothDevice>>(mutableListOf())
+     var deviceQueue: Queue<BluetoothDevice> = LinkedList()
+    var isQueueEmpty by mutableStateOf(deviceQueue.isEmpty())
         private set
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
@@ -88,41 +90,60 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
                 // Check if last four digits are valid numbers
                 if (satelliteNumber != null) {
                     // Check if satellite number is within the specified range
-                        if(!deviceList.any{it.address == device.address}){
-                            Log.e("ScanViewModel", "device $deviceName")
-                            deviceList.add(device)
+                    if(!deviceQueue.any{it.address == device.address}){
+                        Log.e("ScanViewModel", "device $deviceName")
+                        deviceQueue.add(device)
+                        if(!isConnecting) {
+                            connectToDeviceSequentially()
                         }
+                        bleControlManager.setBleCallbackEvent(object :BleCallbackEvent{
+                            override fun onHandleCheck() {
+                                isConnecting = false
+
+                            }
+                        })
+                    }
                 }
             }
         }
     }
 
+
     @SuppressLint("MissingPermission")
     fun connectToDeviceSequentially(){
-        if(!isConnecting && deviceList.isNotEmpty()) {
+        if(!isConnecting && deviceQueue.isNotEmpty()) {
             isConnecting = true
-            val device = deviceList.removeAt(0)
+            val device = deviceQueue.poll()
 
-            bleControlManager.connect(device)
-                .done {
-                    Log.d("BleControlManager", "Подключено к устройству ${device.name}")
-                    bleControlManager.sendPinCommand("master",EntireCheck.PIN_C0DE)
-                }
-                .fail { device, status ->
-                    isConnecting = false
-                    Log.e(
-                        "BleControlManager",
-                        "Не удалось подключиться к устройству ${device.name}: $status"
-                    )
-                }
-                .enqueue()
+            device?.let {
+                bleControlManager.connect(it)
+                    .done {
+                        Log.d("BleControlManager", "Подключено к устройству ${device.name}")
+                        bleControlManager.sendPinCommand("master",EntireCheck.PIN_C0DE)
+                    }
+                    .fail { device, status ->
+                        isConnecting = false
+                        Log.e(
+                            "BleControlManager",
+                            "Не удалось подключиться к устройству ${device.name}: $status"
+
+                        )
+                        connectToDeviceSequentially()
+                    }
+                    .enqueue()
+            }
         }else{
             Log.d("BleControlManager", "Все устройства обработаны")
         }
     }
     fun clearData() {
-        deviceList.clear()
+        deviceQueue.clear()
 
+    }
+
+    fun onDeviceProcessed() {
+        isConnecting = false
+        connectToDeviceSequentially()
     }
 
     companion object{

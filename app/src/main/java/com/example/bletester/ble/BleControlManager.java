@@ -33,11 +33,11 @@ public class BleControlManager extends BleManager {
     public BleControlManager(@NonNull Context context) {
         super(context);
     }
+    BleCallbackEvent bleCallbackEvent;
 
-
-
-
-
+    public void setBleCallbackEvent(BleCallbackEvent bleCallbackEvent) {
+        this.bleCallbackEvent = bleCallbackEvent;
+    }
     @NonNull
     @Override
     protected BleManagerGattCallback getGattCallback() {
@@ -159,6 +159,10 @@ public class BleControlManager extends BleManager {
             Log.d("BleControlManager", "updating hwVer " + defaultResponse);
             if(defaultResponse.contains("ble.ok")){
                 disconnect().enqueue();
+                if(bleCallbackEvent != null){
+                    bleCallbackEvent.onHandleCheck();
+                }
+
             }
 
         }
@@ -166,7 +170,7 @@ public class BleControlManager extends BleManager {
             String pinResponse = new String(data, StandardCharsets.UTF_8);
             if(pinResponse.contains("pin.ok")){
                 Log.d("BleControlManager", "Pin code is correct");
-                sendCommand("version", EntireCheck.default_command);
+                sendCommand("serial", EntireCheck.HW_VER);
             }
         }
     }
