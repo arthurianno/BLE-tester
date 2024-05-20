@@ -8,6 +8,7 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.EntireCheck
 import com.example.bletester.ble.BleCallbackEvent
@@ -24,7 +25,9 @@ import javax.inject.Inject
 class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
 
     var deviceQueue: Queue<BluetoothDevice> = LinkedList()
-    val foundDevices : MutableList<BluetoothDevice> = LinkedList()
+    var foundDevices = mutableStateListOf<BluetoothDevice>()
+    val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
+    val checkedDevices = mutableStateListOf<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
@@ -54,7 +57,7 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
         )
 
     @SuppressLint("MissingPermission")
-    fun scanLeDevice(letter: String, start: String, end: String) {
+    fun scanLeDevice(letter: String, start: Long, end: Long) {
         if (!scanning) {
             handler.postDelayed({
                 scanning = false
@@ -68,7 +71,7 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
         }
     }
 
-    private fun leScanCallback(letter: String, start: String, end: String) = object : ScanCallback() {
+    private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
@@ -88,7 +91,9 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
                     if (!processedDevices.contains(device.address)) {
                         Log.e("ScanViewModel", "device $deviceName")
                         deviceQueue.add(device)
-                        foundDevices.add(device)
+                        if (!foundDevices.any { it.address == device.address } && !checkedDevices.any{it.address == device.address}) {
+                            foundDevices.add(device)
+                        }
                         if(!isConnecting) {
                             connectToDeviceSequentially()
                         }
@@ -98,22 +103,25 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
 
                             }
                             override fun onVersionCheck(version: String) {
-                                val versionPrefix = version.first()
-                                val versionNumber = version.substring(1).toIntOrNull()
-                                Log.e("Scan", " $version")
-                                val startNumber = start.drop(1).toIntOrNull()
-                                val endNumber = end.drop(1).toIntOrNull()
-                                versionNumber?.let { versionNum ->
-                                    startNumber?.let { startNum ->
-                                        endNumber?.let { endNum ->
-                                            if (versionNum in startNum..endNum && versionPrefix.toString().contains(letter)) {
-                                                Log.e("ScanViewModel", "Серийный номер устройства в диапазоне!")
-                                            } else {
-                                                Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
-                                            }
-                                        }
+                                val versionPrefix = version.firstOrNull()
+                                val versionNumber = version.substring(1).toLongOrNull()
+
+                                if (versionPrefix == null || versionNumber == null) {
+                                    Log.e("ScanViewModel", "Неверный формат версии")
+                                    return
+                                }
+
+                                Log.e("Scan", "Version: $version")
+
+                                if (versionNumber in start..end && versionPrefix.toString().contains(letter)) {
+                                    Log.e("ScanViewModel", "Серийный номер устройства в диапазоне!")
+                                    if (!checkedDevices.any { it.address == device.address }) {
+                                        checkedDevices.add(device)
                                     }
-                                } ?: Log.e("ScanViewModel", "Одно или несколько значений равно null")
+
+                                } else {
+                                    Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
+                                }
                             }
                         })
                     }
@@ -141,8 +149,11 @@ class ScanViewModel @Inject constructor (val bleControlManager: BleControlManage
                         Log.e(
                             "BleControlManager",
                             "Не удалось подключиться к устройству ${device.name}: $status"
-
                         )
+                        if (!unCheckedDevices.any { it.address == device.address }) {
+                            unCheckedDevices.add(device)
+                        }
+                        foundDevices.remove(device)
                         connectToDeviceSequentially()
                     }
                     .enqueue()
