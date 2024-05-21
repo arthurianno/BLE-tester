@@ -75,6 +75,8 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation ("com.google.accompanist:accompanist-permissions:0.21.1-beta")
     implementation ("no.nordicsemi.android:ble:2.7.5")
+    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.0")
+    implementation ("androidx.compose.runtime:runtime-livedata:1.6.7")
     implementation ("no.nordicsemi.android:ble-livedata:2.7.5")
 
 

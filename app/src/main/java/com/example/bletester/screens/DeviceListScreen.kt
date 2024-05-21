@@ -2,6 +2,7 @@ package com.example.bletester.screens
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,7 +45,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
-@SuppressLint("MissingPermission")
+@SuppressLint("MissingPermission", "MutableCollectionMutableState")
 @Composable
 fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val scanViewModel: ScanViewModel = hiltViewModel()
@@ -87,9 +89,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val deviceTypes = listOf("SatelliteOnline", "SatelliteVoice", "AnotherDevice")
     var selectedDeviceType by remember { mutableStateOf(deviceTypes[0]) }
     var selectedModeType by remember { mutableStateOf(optionTypeName[0]) }
-    val foundedDevice = scanViewModel.foundDevices
-    val checkedDevice = scanViewModel.checkedDevices
-    val uncheckedDevice = scanViewModel.unCheckedDevices
+    var foundedDevice = scanViewModel.foundDevices
+    var checkedDevice = scanViewModel.checkedDevices
+    var uncheckedDevice = scanViewModel.unCheckedDevices
     var showDropdown by remember { mutableStateOf(false) }
     var showDropdownOption by remember { mutableStateOf(false) }
     val isStartRangeValid = remember { mutableStateOf(true) }
@@ -103,6 +105,10 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
     // LaunchedEffect to update deviceList when scanViewModel.deviceQueue changes
     LaunchedEffect(scanViewModel.foundDevices,scanViewModel.unCheckedDevices,scanViewModel.checkedDevices) {
+        foundedDevice = scanViewModel.foundDevices
+        checkedDevice = scanViewModel.checkedDevices
+        uncheckedDevice = scanViewModel.unCheckedDevices
+
         Log.e("ScanCheck","Items ${foundedDevice.toList()}")
     }
     val currentLetter by remember {
@@ -216,16 +222,18 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             onClick = {
                                 selectedModeType = optionTypeName[index]
                                 showDropdownOption = false
-                            },
+                               },
                             contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                         )
                     }
                 }
             }
             Button(onClick = {
-                if(scanViewModel.deviceQueue.isNotEmpty()){
-                    scanViewModel.clearData()
-                }
+                // Очистка данных из ScanViewModel
+                scanViewModel.clearData()
+                foundedDevice.clear()
+                checkedDevice.clear()
+                // Очистка списков на экране
                 scanViewModel.scanLeDevice(currentLetter,startRange,endRange)
             }) {
                 Text("SCAN IT!")
