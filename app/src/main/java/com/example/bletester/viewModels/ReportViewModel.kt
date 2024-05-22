@@ -6,14 +6,11 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.ReportItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import javax.inject.Inject
@@ -40,6 +37,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                     outputStream?.let { writeReport(it, reportItems) }
                 }
                 Log.i("ReportViewModel", "Report saved to $newFileUri")
+
             } else {
                 Log.e("ReportViewModel", "Error creating new document")
             }
@@ -49,13 +47,20 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
 
     private fun writeReport(outputStream: OutputStream, reportItems: List<ReportItem>) {
-        val header = "Device,Device Address,Status,Interpretation\n"
+        val separator = "--------------------------------------------------------------------\n"
+        val failedDevicesCount = reportItems.count { it.status == "Не прошло проверку" } // Замените "FAILED" на фактическое значение статуса для неудачных устройств
+        val header =
+            "ОТЧЕТ\nДиапазон адресов: 24050000001 - 24050000002 \nУстройств не прошедших проверку: $failedDevicesCount\n\n"
+
+
         try {
             outputStream.write(header.toByteArray())
 
             for (item in reportItems) {
+                outputStream.write(separator.toByteArray())
                 val line = "Device: ${item.device}\nDevice Address: ${item.deviceAddress}\nStatus: ${item.status}\nInterpretation: ${item.interpretation}\n\n"
                 outputStream.write(line.toByteArray())
+                outputStream.write(separator.toByteArray())
             }
         } catch (e: IOException) {
             Log.e("ReportViewModel", "Error writing report: ${e.message}")
@@ -67,6 +72,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             }
         }
     }
+
 }
 
 
