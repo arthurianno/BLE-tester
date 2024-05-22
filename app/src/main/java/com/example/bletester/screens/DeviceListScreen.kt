@@ -3,7 +3,9 @@ package com.example.bletester.screens
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +22,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -28,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -61,7 +65,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
     val lifecycleOwner = LocalLifecycleOwner.current
     var startRange by remember { mutableStateOf(0L) }
+    val context = LocalContext.current
     var endRange by remember { mutableStateOf(0L) }
+    val toastMessage by scanViewModel.toastMessage.collectAsState()
     val optionTypeName= listOf(
         DeviceListOption.ALL_DEVICES to "All",
         DeviceListOption.CHECKED_DEVICES to "Approved",
@@ -111,10 +117,19 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
         Log.e("ScanCheck","Items ${foundedDevice.toList()}")
     }
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            scanViewModel.toastMessage.value = null // Сбросить сообщение после показа
+        }
+    }
     val currentLetter by remember {
         derivedStateOf {
             deviceTypeToLetter[selectedDeviceType] ?: ""
         }
+    }
+    fun showToast(context: Context, message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     Column(
@@ -235,8 +250,10 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 checkedDevice.clear()
                 // Очистка списков на экране
                 scanViewModel.scanLeDevice(currentLetter,startRange,endRange)
+                showToast(context,"Сканирование начато")
             }) {
                 Text("SCAN IT!")
+
             }
         }
 

@@ -11,9 +11,11 @@
     import androidx.compose.runtime.mutableStateListOf
     import androidx.lifecycle.ViewModel
     import com.example.bletester.EntireCheck
+    import com.example.bletester.ReportItem
     import com.example.bletester.ble.BleCallbackEvent
     import com.example.bletester.ble.BleControlManager
     import dagger.hilt.android.lifecycle.HiltViewModel
+    import kotlinx.coroutines.flow.MutableStateFlow
     import java.util.LinkedList
     import java.util.Queue
     import javax.inject.Inject
@@ -22,8 +24,9 @@
     @Suppress("DEPRECATION")
     @HiltViewModel
     @SuppressLint("StaticFieldLeak")
-        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager) : ViewModel() {
+        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager,private val reportViewModel: ReportViewModel) : ViewModel() {
 
+            val toastMessage = MutableStateFlow<String?>(null)
             var deviceQueue: Queue<BluetoothDevice> = LinkedList()
             var foundDevices = mutableStateListOf<BluetoothDevice>()
             val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
@@ -36,8 +39,8 @@
             private val handler = android.os.Handler()
             private val scanPeriod: Long = 10000
             private var isConnecting = false
+            private var checkCount = 0L
             private val processedDevices = mutableSetOf<String>()
-
 
 
         init {
@@ -55,7 +58,6 @@
                 ScanFilter.Builder()
                     .build()
             )
-
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             if (!scanning) {
@@ -70,7 +72,22 @@
                 bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
             }
         }
-
+        @SuppressLint("MissingPermission")
+        private fun createReportItems(deviceList: List<BluetoothDevice>, status: String): List<ReportItem> {
+            return deviceList.map { device ->
+                ReportItem(
+                    device = device.name ?: "Unknown Device",
+                    deviceAddress = device.address,
+                    status = status,
+                    interpretation = if (status == "Checked") "Device is within range" else "Device is out of range"
+                )
+            }
+        }
+        private fun updateReportViewModel() {
+            val checkedReportItems = createReportItems(checkedDevices, "Checked")
+            val uncheckedReportItems = createReportItems(unCheckedDevices, "Unchecked")
+            reportViewModel.updateReportItems(checkedReportItems + uncheckedReportItems)
+        }
         private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {
             @SuppressLint("MissingPermission")
             override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -100,6 +117,12 @@
                             bleControlManager.setBleCallbackEvent(object :BleCallbackEvent{
                                 override fun onHandleCheck() {
                                     isConnecting = false
+                                    checkCount++
+                                    val totalCount = end - start + 1
+                                    if(totalCount == checkCount){
+                                        checkCount = 0
+                                        connectToDeviceSequentially()
+                                    }
 
                                 }
                                 override fun onVersionCheck(version: String) {
@@ -108,6 +131,7 @@
 
                                     if (versionPrefix == null || versionNumber == null) {
                                         Log.e("ScanViewModel", "Неверный формат версии")
+
                                         return
                                     }
 
@@ -131,6 +155,19 @@
                                         }
                                     } else {
                                         Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
+                                        synchronized(foundDevices) {
+                                            val iterator = foundDevices.iterator()
+                                            while (iterator.hasNext()) {
+                                                val foundDevice = iterator.next()
+                                                if (foundDevice.address == device.address) {
+                                                    iterator.remove()
+                                                    if (!unCheckedDevices.any { it.address == device.address }) {
+                                                        unCheckedDevices.add(device)
+                                                    }
+                                                    break
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             })
@@ -141,10 +178,9 @@
         }
         @SuppressLint("MissingPermission")
         fun connectToDeviceSequentially(){
-            if(!isConnecting && deviceQueue.isNotEmpty()) {
+            if(deviceQueue.isNotEmpty() && !isConnecting) {
                 isConnecting = true
                 val device = deviceQueue.poll()
-
                 device?.let {
                     processedDevices.add(it.address)
                     bleControlManager.connect(it)
@@ -154,10 +190,7 @@
                         }
                         .fail { device, status ->
                             isConnecting = false
-                            Log.e(
-                                "BleControlManager",
-                                "Не удалось подключиться к устройству ${device.name}: $status"
-                            )
+                            Log.e("BleControlManager", "Не удалось подключиться к устройству ${device.name}: $status")
                             if (!unCheckedDevices.any { it.address == device.address }) {
                                 unCheckedDevices.add(device)
                             }
@@ -166,14 +199,17 @@
                         }
                         .enqueue()
                 }
-            }else{
+            }else {
                 Log.d("BleControlManager", "Все устройства обработаны")
+                toastMessage.value = "Все устройства обработаны"
+                updateReportViewModel()
             }
         }
         fun clearData() {
             deviceQueue.clear()
             foundDevices.clear()
             processedDevices.clear()
+
         }
 
         companion object{

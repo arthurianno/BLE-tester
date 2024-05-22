@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.example.bletester.ble.BleControlManager
+import com.example.bletester.viewModels.ReportViewModel
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,5 +31,11 @@ object AppModule {
     @Singleton
     fun provideBleControlManager(bluetoothAdapter: BluetoothAdapter,@ApplicationContext context: Context): BleControlManager {
         return BleControlManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideReportViewModel(@ApplicationContext context: Context): ReportViewModel {
+        return ReportViewModel(context)
     }
 }
