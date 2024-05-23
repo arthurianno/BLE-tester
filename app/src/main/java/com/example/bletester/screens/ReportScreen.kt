@@ -1,6 +1,7 @@
 import android.bluetooth.BluetoothAdapter
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import com.example.bletester.ReportItem
 import com.example.bletester.permissions.SystemBroadcastReceiver
@@ -42,6 +44,8 @@ fun ReportScreen(
     )
     val reportViewModel: ReportViewModel = hiltViewModel()
     val reportItems = remember { sampleData }
+    val context = LocalContext.current
+    val toastMessage by reportViewModel.toastMessage.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
 
@@ -49,6 +53,12 @@ fun ReportScreen(
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
         if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
             onBluetoothStateChanged()
+        }
+    }
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            reportViewModel.toastMessage.value = null // Сбросить сообщение после показа
         }
     }
 
@@ -96,8 +106,9 @@ fun ReportScreen(
 
     if (showDialog) {
         SaveFileDialog(
-            onSave = { fileName, filePath ->
-                reportViewModel.saveReport(fileName, filePath, reportItems)
+            onSave = { fileName ->
+                reportViewModel.signInAnonymously()
+                reportViewModel.saveReport(fileName, reportItems)
                 showDialog = false
             },
             onCancel = { showDialog = false }
@@ -151,15 +162,8 @@ fun ReportItemCard(device: String, deviceAddress: String, status: String, interp
 }
 
 @Composable
-fun SaveFileDialog(onSave: (String, Uri) -> Unit, onCancel: () -> Unit) {
+fun SaveFileDialog(onSave: (String) -> Unit, onCancel: () -> Unit) {
     var fileName by remember { mutableStateOf("") }
-    var filePathUri by remember { mutableStateOf<Uri?>(null) }
-
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        filePathUri = uri?.let { treeUri ->
-            DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
-        }
-    }
 
     Dialog(onDismissRequest = onCancel) {
         Card(
@@ -174,15 +178,6 @@ fun SaveFileDialog(onSave: (String, Uri) -> Unit, onCancel: () -> Unit) {
             ) {
                 Text("Введите имя файла и путь сохранения", fontFamily = FontFamily.Serif, fontSize = 16.sp)
                 TextField(value = fileName, onValueChange = { fileName = it }, label = { Text("Имя файла") })
-                Button(
-                    onClick = { launcher.launch(null) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Выбрать путь сохранения")
-                }
-                filePathUri?.let {
-                    Text("Выбранный путь: $it")
-                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -193,11 +188,11 @@ fun SaveFileDialog(onSave: (String, Uri) -> Unit, onCancel: () -> Unit) {
                     }
                     Button(
                         onClick = {
-                            if (fileName.isNotBlank() && filePathUri != null) {
-                                onSave(fileName, filePathUri!!)
+                            if (fileName.isNotBlank()) {
+                                onSave(fileName)
                             }
                         },
-                        enabled = fileName.isNotBlank() && filePathUri != null
+                        enabled = fileName.isNotBlank()
                     ) {
                         Text("Сохранить")
                     }

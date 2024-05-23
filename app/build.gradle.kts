@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android") version "1.9.0"
     id ("com.google.dagger.hilt.android")
     id ("kotlin-kapt")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -78,6 +79,9 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.0")
     implementation ("androidx.compose.runtime:runtime-livedata:1.6.7")
     implementation ("no.nordicsemi.android:ble-livedata:2.7.5")
+    implementation ("com.google.firebase:firebase-storage:21.0.0")
+    implementation ("com.google.firebase:firebase-auth:23.0.0")
+    implementation (platform("com.google.firebase:firebase-bom:31.2.0"))
 
 
 }
