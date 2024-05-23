@@ -107,7 +107,7 @@ fun ReportScreen(
     if (showDialog) {
         SaveFileDialog(
             onSave = { fileName ->
-                reportViewModel.signInAnonymously()
+
                 reportViewModel.saveReport(fileName, reportItems)
                 showDialog = false
             },
