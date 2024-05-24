@@ -41,6 +41,7 @@
             private var isConnecting = false
             private var checkCount = 0L
             private val processedDevices = mutableSetOf<String>()
+            private var attemptedDevices = 0
 
 
         init {
@@ -109,6 +110,7 @@
                             Log.e("ScanViewModel", "device $deviceName")
                             deviceQueue.add(device)
                             if (!foundDevices.any { it.address == device.address } && !checkedDevices.any{it.address == device.address}) {
+                                Log.e("AdddFoundCheck1","addded $device")
                                 foundDevices.add(device)
                             }
                             if(!isConnecting) {
@@ -144,15 +146,17 @@
                                             while (iterator.hasNext()) {
                                                 val foundDevice = iterator.next()
                                                 if (foundDevice.address == device.address) {
-                                                    iterator.remove()
+                                                    if (!checkedDevices.any { it.address == device.address }) {
+                                                        checkedDevices.add(device)
+                                                    }
+                                                    Log.e("RemoveFoundCheck2","removed ${device}")
                                                     break
                                                 }
                                             }
+                                            iterator.remove()
                                         }
 
-                                        if (!checkedDevices.any { it.address == device.address }) {
-                                            checkedDevices.add(device)
-                                        }
+
                                     } else {
                                         Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
                                         synchronized(foundDevices) {
@@ -160,13 +164,14 @@
                                             while (iterator.hasNext()) {
                                                 val foundDevice = iterator.next()
                                                 if (foundDevice.address == device.address) {
-                                                    iterator.remove()
+                                                    Log.e("RemoveFoundCheck3","removed $device")
                                                     if (!unCheckedDevices.any { it.address == device.address }) {
                                                         unCheckedDevices.add(device)
                                                     }
                                                     break
                                                 }
                                             }
+                                            iterator.remove()
                                         }
                                     }
                                 }
@@ -195,6 +200,7 @@
                                 unCheckedDevices.add(device)
                             }
                             foundDevices.remove(device)
+                            Log.e("RemoveFoundCheck1","removed $device")
                             connectToDeviceSequentially()
                         }
                         .enqueue()
@@ -202,7 +208,16 @@
             }else {
                 Log.d("BleControlManager", "Все устройства обработаны")
                 toastMessage.value = "Все устройства обработаны"
-                updateReportViewModel()
+                if (attemptedDevices != 3) {
+                    attemptedDevices++
+                    if (unCheckedDevices.isNotEmpty()) {
+                        unCheckedDevices.forEach { device ->
+                            deviceQueue.add(device)
+                        }
+                        connectToDeviceSequentially()
+                    }
+                    updateReportViewModel()
+                }
             }
         }
         fun clearData() {

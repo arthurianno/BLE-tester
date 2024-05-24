@@ -83,6 +83,10 @@ dependencies {
     implementation ("com.google.firebase:firebase-storage:21.0.0")
     implementation ("com.google.firebase:firebase-auth:23.0.0")
     implementation (platform("com.google.firebase:firebase-bom:31.2.0"))
+    implementation ("com.google.firebase:firebase-auth:23.0.0")
+    implementation ("com.google.firebase:firebase-database:21.0.0")
+
+
 
 
 }
