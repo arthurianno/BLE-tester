@@ -1,32 +1,14 @@
 import android.bluetooth.BluetoothAdapter
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.bletester.ReportItem
 import com.example.bletester.permissions.SystemBroadcastReceiver
 import com.example.bletester.viewModels.ReportViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun ReportScreen(
@@ -62,8 +45,8 @@ fun ReportScreen(
     val reportItems = remember { sampleData }
     val context = LocalContext.current
     val toastMessage by reportViewModel.toastMessage.collectAsState()
-
     var showDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
@@ -71,6 +54,7 @@ fun ReportScreen(
             onBluetoothStateChanged()
         }
     }
+
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -85,11 +69,32 @@ fun ReportScreen(
             .padding(16.dp)
     ) {
         Column {
-            Button(
-                onClick = { showDialog = true },
-                modifier = Modifier.align(Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Сохранить")
+                Button(
+                    onClick = { showDialog = true }
+                ) {
+                    Text("Сохранить")
+                }
+
+                IconButton(onClick = {
+                    coroutineScope.launch {
+                        val fileName = "test_file_task" // Имя файла для проверки и загрузки
+                        val exists = reportViewModel.isReportFileExists(fileName)
+                        if (exists) {
+                            val content = reportViewModel.loadReportFromFile(fileName)
+                            content.let {
+                                Toast.makeText(context, "Файл загружен!", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Файл не найден", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }) {
+                    Icon(imageVector = Icons.Default.Email, contentDescription = "Загрузить отчет")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -123,7 +128,6 @@ fun ReportScreen(
     if (showDialog) {
         SaveFileDialog(
             onSave = { fileName ->
-                reportViewModel.signInAnonymously()
                 reportViewModel.saveReport(fileName, reportItems)
                 showDialog = false
             },
@@ -144,33 +148,33 @@ fun ReportItemCard(device: String, deviceAddress: String, status: String, interp
         )
     ) {
         Column(
-            modifier = Modifier.padding(3.dp) // Increased padding
+            modifier = Modifier.padding(3.dp)
         ) {
             Text(
                 text = device,
                 fontFamily = FontFamily.Serif,
-                fontSize = 15.sp, // Adjusted text size for better readability
+                fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp)) // Added spacing between text elements
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Address: $deviceAddress",
                 fontFamily = FontFamily.Serif,
-                fontSize = 10.sp, // Adjusted text size for better readability
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(4.dp)) // Added spacing between text elements
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Status: $status",
                 fontFamily = FontFamily.Serif,
-                fontSize = 10.sp, // Adjusted text size for better readability
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(4.dp)) // Added spacing between text elements
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = interpretation,
                 fontFamily = FontFamily.Serif,
-                fontSize = 10.sp, // Adjusted text size for better readability
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
