@@ -1,6 +1,7 @@
 package com.example.bletester.viewModels
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.MutableState
@@ -24,19 +25,33 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
-    private var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
+    var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
     val toastMessage = MutableStateFlow<String?>(null)
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
      val addressRange = mutableStateOf<Pair<String, String>?>(null)
+    private val sharedPreferences = context.getSharedPreferences("FileNames", Context.MODE_PRIVATE)
+    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+        if (key == "fileNames") {
+            val fileNames = sharedPreferences.getStringSet(key, setOf()) ?: setOf()
+            Log.i("SharedPreferenceChangeListener", "Updating $fileNames")
+        }
+        // Дополнительные действия при изменении SharedPreferences, если необходимо
+    }
 
 
     init {
         scheduleFileCheckWorker()
+        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
     }
 
     fun updateReportItems(items: List<ReportItem>) {
         reportItems.value = items
         Log.e("TestReportView","$reportItems")
+    }
+    override fun onCleared() {
+        super.onCleared()
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener)
+        Log.i("ReportViewModel", "SharedPreferences listener unregistered")
     }
 
     fun saveReport(fileName: String, reportItems: List<ReportItem>) {

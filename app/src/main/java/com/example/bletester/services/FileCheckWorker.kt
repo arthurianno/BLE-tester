@@ -2,9 +2,12 @@ package com.example.bletester.services
 
 import android.content.Context
 import android.util.Log
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.bletester.viewModels.ReportViewModel
+import com.google.firebase.database.core.Repo
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import dagger.assisted.Assisted
@@ -20,7 +23,8 @@ class FileCheckWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, workerParams) {
 
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
-    private var lastProcessedFiles: Set<StorageReference> = emptySet()
+    private var lastProcessedFiles: Set<String> = emptySet()
+    private val sharedPreferences = context.getSharedPreferences("FileNames", Context.MODE_PRIVATE)
 
     override suspend fun doWork(): Result {
         try {
@@ -31,6 +35,7 @@ class FileCheckWorker @AssistedInject constructor(
                     lastProcessedFiles = newFiles
                     Log.i("MinuteCheckWorker", "updating state $newFiles")
                     sendNotification(filteredNewFiles)
+                    updateSharedPreferences(newFiles)
                 } else {
                     Log.i("MinuteCheckWorker", "No new files detected")
                 }
@@ -42,16 +47,29 @@ class FileCheckWorker @AssistedInject constructor(
         }
     }
 
-    private fun sendNotification(newFiles: Set<StorageReference>) {
-        Log.i("MinuteCheckWorker", "New files detected: ${newFiles.map { it.name }}")
+    private fun sendNotification(newFiles: Set<String>) {
+        Log.i("MinuteCheckWorker", "New files detected: $newFiles")
+
+    }
+    private fun updateSharedPreferences(newFiles: Set<String>) {
+        val editor = sharedPreferences.edit()
+
+        // Обновляем список всех файлов
+        val fileNames = sharedPreferences.getStringSet("fileNames", mutableSetOf()) ?: mutableSetOf()
+        fileNames.addAll(newFiles)
+        editor.putStringSet("fileNames", fileNames)
+
+        // Применяем изменения
+        editor.apply()
+        Log.i("ReportViewModel", "SharedPreferences updated with $newFiles")
     }
 
-    private suspend fun checkForNewFiles(): Set<StorageReference> {
+    private suspend fun checkForNewFiles(): Set<String> {
         val storageRef: StorageReference = storage.reference.child("reports/")
         val result = storageRef.listAll().await()
         val allFiles = result.items
 
         val prefix = "task_"
-        return allFiles.filter { it.name.startsWith(prefix) }.toSet()
+        return allFiles.filter { it.name.startsWith(prefix) }.map { it.name }.toSet()
     }
 }

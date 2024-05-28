@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.bletester.ReportItem
 import com.example.bletester.permissions.SystemBroadcastReceiver
 import com.example.bletester.viewModels.ReportViewModel
+import com.example.bletester.viewModels.ScanViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -41,8 +42,9 @@ fun ReportScreen(
             interpretation = "Устройство не прошло проверку: Ошибка подключения."
         )
     )
+    val scanViewModel: ScanViewModel = hiltViewModel()
     val reportViewModel: ReportViewModel = hiltViewModel()
-    val reportItems = remember { sampleData }
+    val reportItems = reportViewModel.reportItems
     val context = LocalContext.current
     val toastMessage by reportViewModel.toastMessage.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
@@ -99,7 +101,7 @@ fun ReportScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (reportItems.isEmpty()) {
+            if (reportItems.value.isEmpty()) {
                 Text(
                     text = "Экран отчета",
                     fontFamily = FontFamily.Serif,
@@ -112,7 +114,7 @@ fun ReportScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(reportItems) { item ->
+                    items(reportItems.value) { item ->
                         ReportItemCard(
                             device = item.device,
                             deviceAddress = item.deviceAddress,
@@ -128,7 +130,7 @@ fun ReportScreen(
     if (showDialog) {
         SaveFileDialog(
             onSave = { fileName ->
-                reportViewModel.saveReport(fileName, reportItems)
+                reportViewModel.saveReport(fileName, reportItems.value)
                 showDialog = false
             },
             onCancel = { showDialog = false }
