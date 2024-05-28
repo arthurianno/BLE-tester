@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +51,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.bletester.permissions.PermissionUtils
 import com.example.bletester.permissions.SystemBroadcastReceiver
+import com.example.bletester.viewModels.ReportViewModel
 import com.example.bletester.viewModels.ScanViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -58,7 +62,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 @Composable
 fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val scanViewModel: ScanViewModel = hiltViewModel()
-
+    val reportViewModel: ReportViewModel = hiltViewModel()
     SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
         if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
@@ -143,6 +147,16 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ){
+
+        if (reportViewModel.notificationShown) {
+            Icon(Icons.Default.Info, contentDescription = "Notification Icon", tint = Color.Red)
+        } else {
+            Spacer(modifier = Modifier.width(48.dp)) // Резервное пространство для сохранения равномерной высоты строки
+        }
         ExposedDropdownMenuBox(
             expanded = showDropdown,
             onExpandedChange = { showDropdown = !showDropdown }) {
@@ -168,6 +182,18 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     )
                 }
             }
+            }
+            Icon(
+                Icons.Default.Info,
+                contentDescription = "Notification Icon",
+                tint = Color.Red,
+                modifier = Modifier.clickable {
+                    // После того как иконка уведомления была нажата, скройте её
+                    reportViewModel.notificationShown = false
+
+                    // Здесь вы можете выполнить другие действия при нажатии на иконку уведомления
+                    // Например, показать дополнительную информацию или выполнить определенное действие
+                })
         }
         Row(
             Modifier.fillMaxWidth(),
@@ -214,8 +240,10 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         }
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
+
+
             ExposedDropdownMenuBox(
                 expanded = showDropdownOption,
                 onExpandedChange = { showDropdownOption = !showDropdownOption },
@@ -260,6 +288,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Text("SCAN IT!")
 
             }
+
         }
 
         LazyColumn {

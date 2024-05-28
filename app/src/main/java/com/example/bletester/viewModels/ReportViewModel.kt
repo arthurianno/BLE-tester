@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -30,10 +32,13 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
      val addressRange = mutableStateOf<Pair<String, String>?>(null)
     private val sharedPreferences = context.getSharedPreferences("FileNames", Context.MODE_PRIVATE)
-    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+    var notificationShown by mutableStateOf(false)
+    val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
         if (key == "fileNames") {
             val fileNames = sharedPreferences.getStringSet(key, setOf()) ?: setOf()
             Log.i("SharedPreferenceChangeListener", "Updating $fileNames")
+            // Установить notificationShown в true, когда получено новое уведомление
+            notificationShown = true
         }
         // Дополнительные действия при изменении SharedPreferences, если необходимо
     }
