@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,8 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,6 +79,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         DeviceListOption.CHECKED_DEVICES to "Approved",
         DeviceListOption.UNCHEKED_DEVICES to "UnCheck"
     )
+    val counterState = reportViewModel.counter
 
     DisposableEffect(key1 = lifecycleOwner, effect = {
         val observer = LifecycleEventObserver { _, event ->
@@ -151,12 +149,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ){
-
-        if (reportViewModel.notificationShown) {
-            Icon(Icons.Default.Info, contentDescription = "Notification Icon", tint = Color.Red)
-        } else {
-            Spacer(modifier = Modifier.width(48.dp)) // Резервное пространство для сохранения равномерной высоты строки
-        }
         ExposedDropdownMenuBox(
             expanded = showDropdown,
             onExpandedChange = { showDropdown = !showDropdown }) {
@@ -183,17 +175,8 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 }
             }
             }
-            Icon(
-                Icons.Default.Info,
-                contentDescription = "Notification Icon",
-                tint = Color.Red,
-                modifier = Modifier.clickable {
-                    // После того как иконка уведомления была нажата, скройте её
-                    reportViewModel.notificationShown = false
+            AnimatedCounter(count = counterState)
 
-                    // Здесь вы можете выполнить другие действия при нажатии на иконку уведомления
-                    // Например, показать дополнительную информацию или выполнить определенное действие
-                })
         }
         Row(
             Modifier.fillMaxWidth(),

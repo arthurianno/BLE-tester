@@ -2,12 +2,10 @@ package com.example.bletester.services
 
 import android.content.Context
 import android.util.Log
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.bletester.viewModels.ReportViewModel
-import com.google.firebase.database.core.Repo
+import androidx.work.workDataOf
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import dagger.assisted.Assisted
@@ -24,7 +22,6 @@ class FileCheckWorker @AssistedInject constructor(
 
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
     private var lastProcessedFiles: Set<String> = emptySet()
-    private val sharedPreferences = context.getSharedPreferences("FileNames", Context.MODE_PRIVATE)
 
     override suspend fun doWork(): Result {
         try {
@@ -35,12 +32,17 @@ class FileCheckWorker @AssistedInject constructor(
                     lastProcessedFiles = newFiles
                     Log.i("MinuteCheckWorker", "updating state $newFiles")
                     sendNotification(filteredNewFiles)
-                    updateSharedPreferences(newFiles)
+
+                    // Преобразование набора новых файлов в строку
+                    val filteredTaskList = filteredNewFiles.joinToString(separator = ",")
+                    val outputData = workDataOf(MY_KEY_DATA_FROM_WORKER to filteredTaskList)
+                    return Result.success(outputData)
                 } else {
                     Log.i("MinuteCheckWorker", "No new files detected")
                 }
                 delay(TimeUnit.MINUTES.toMillis(1))
             }
+
         } catch (e: Exception) {
             Log.e("MinuteCheckWorker", "Error checking for new files", e)
             return Result.retry()
@@ -49,19 +51,6 @@ class FileCheckWorker @AssistedInject constructor(
 
     private fun sendNotification(newFiles: Set<String>) {
         Log.i("MinuteCheckWorker", "New files detected: $newFiles")
-
-    }
-    private fun updateSharedPreferences(newFiles: Set<String>) {
-        val editor = sharedPreferences.edit()
-
-        // Обновляем список всех файлов
-        val fileNames = sharedPreferences.getStringSet("fileNames", mutableSetOf()) ?: mutableSetOf()
-        fileNames.addAll(newFiles)
-        editor.putStringSet("fileNames", fileNames)
-
-        // Применяем изменения
-        editor.apply()
-        Log.i("ReportViewModel", "SharedPreferences updated with $newFiles")
     }
 
     private suspend fun checkForNewFiles(): Set<String> {
@@ -71,5 +60,9 @@ class FileCheckWorker @AssistedInject constructor(
 
         val prefix = "task_"
         return allFiles.filter { it.name.startsWith(prefix) }.map { it.name }.toSet()
+    }
+
+    companion object {
+        const val MY_KEY_DATA_FROM_WORKER = "MY_KEY_DATA_FROM_WORKER"
     }
 }

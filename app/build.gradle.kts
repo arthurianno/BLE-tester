@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.hilt:hilt-common:1.2.0")
     implementation("androidx.hilt:hilt-work:1.2.0")
+    implementation("androidx.datastore:datastore-preferences-core-jvm:1.1.1")
+    implementation("androidx.preference:preference-ktx:1.2.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
@@ -91,6 +93,8 @@ dependencies {
     implementation ("com.google.firebase:firebase-messaging:24.0.0")
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
+    implementation ("androidx.datastore:datastore-android:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
 
 

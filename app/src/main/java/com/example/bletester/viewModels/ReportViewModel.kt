@@ -1,15 +1,16 @@
 package com.example.bletester.viewModels
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.bletester.ReportItem
@@ -31,32 +32,45 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     val toastMessage = MutableStateFlow<String?>(null)
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
      val addressRange = mutableStateOf<Pair<String, String>?>(null)
-    private val sharedPreferences = context.getSharedPreferences("FileNames", Context.MODE_PRIVATE)
     var notificationShown by mutableStateOf(false)
-    val listener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
-        if (key == "fileNames") {
-            val fileNames = sharedPreferences.getStringSet(key, setOf()) ?: setOf()
-            Log.i("SharedPreferenceChangeListener", "Updating $fileNames")
-            // Установить notificationShown в true, когда получено новое уведомление
-            notificationShown = true
-        }
-        // Дополнительные действия при изменении SharedPreferences, если необходимо
-    }
+    var counter by mutableStateOf(0)
+    val myLiveData = MutableLiveData<String>()
+    private var isWorkerScheduled = false
+
 
 
     init {
-        scheduleFileCheckWorker()
-        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
+        if (!isWorkerScheduled) {
+            scheduleFileCheckWorker()
+            loadDataFromWorker()
+            isWorkerScheduled = true
+        }
     }
 
     fun updateReportItems(items: List<ReportItem>) {
         reportItems.value = items
         Log.e("TestReportView","$reportItems")
     }
+    private fun loadDataFromWorker() {
+        val myWorkerReq = OneTimeWorkRequestBuilder<FileCheckWorker>()
+            .build()
+
+        val mWorkManager = WorkManager.getInstance(context)
+        mWorkManager.beginWith(myWorkerReq).enqueue()
+
+        mWorkManager.getWorkInfoByIdLiveData(myWorkerReq.id).observeForever { workInfo ->
+            if (workInfo.state.isFinished) {
+                val outputData = workInfo.outputData
+                val result = outputData.getString(FileCheckWorker.MY_KEY_DATA_FROM_WORKER)
+                Log.e("ReportWORKER","result is: $result")
+                myLiveData.value = result
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
-        sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener)
-        Log.i("ReportViewModel", "SharedPreferences listener unregistered")
+        Log.i("ReportViewModel", "ViewModel has been cleared")
     }
 
     fun saveReport(fileName: String, reportItems: List<ReportItem>) {
@@ -174,7 +188,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
-                "FileCheckWork",
+                "FileCheckWork",  // Уникальное имя для периодического запроса
                 ExistingPeriodicWorkPolicy.REPLACE,
                 workRequest
             )

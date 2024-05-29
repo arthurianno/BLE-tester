@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.work.WorkManager
 import com.example.bletester.ble.BleControlManager
-import com.example.bletester.services.FileCheckWorker
 import com.example.bletester.viewModels.ReportViewModel
 import dagger.Module
 import dagger.Provides
@@ -46,4 +45,5 @@ object AppModule {
     fun provideWorkManager(@ApplicationContext context: Context): WorkManager {
         return WorkManager.getInstance(context)
     }
+
 }
