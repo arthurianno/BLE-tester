@@ -79,7 +79,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         DeviceListOption.CHECKED_DEVICES to "Approved",
         DeviceListOption.UNCHEKED_DEVICES to "UnCheck"
     )
-    val counterState = reportViewModel.counter
+    val counterState by reportViewModel.counter.collectAsState()
 
     DisposableEffect(key1 = lifecycleOwner, effect = {
         val observer = LifecycleEventObserver { _, event ->

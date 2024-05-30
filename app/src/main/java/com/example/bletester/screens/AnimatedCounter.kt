@@ -2,7 +2,6 @@
 package com.example.bletester.screens
 
 import android.annotation.SuppressLint
-import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -31,7 +30,6 @@ fun AnimatedCounter (
     }
     SideEffect {
         oldCount = count
-        Log.e("ChekCounterViewModel", "Counter: $oldCount")
     }
     Row(modifier = modifier){
         val countString = count.toString()
