@@ -48,6 +48,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.bletester.permissions.PermissionUtils
 import com.example.bletester.permissions.SystemBroadcastReceiver
+import com.example.bletester.screens.dialogs.AnimatedCounter
 import com.example.bletester.viewModels.ReportViewModel
 import com.example.bletester.viewModels.ScanViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -175,7 +176,11 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 }
             }
             }
-            AnimatedCounter(count = counterState)
+            AnimatedCounter(
+                count = counterState,
+                modifier = Modifier.clickable {
+                    Log.d("DeviceListScreen", "AnimatedCounter clicked")
+            })
 
         }
         Row(

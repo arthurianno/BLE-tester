@@ -43,17 +43,20 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private fun loadCheckedFiles() {
         val sharedPreferences = context.getSharedPreferences("checked_files", Context.MODE_PRIVATE)
         val filesSet = sharedPreferences.getStringSet("checked_files_set", emptySet()) ?: emptySet()
-        checkedFiles.addAll(filesSet)
+        checkedFiles.addAll(filesSet.sorted())
         Log.i("ReportViewModel", "Загружены проверенные файлы: $checkedFiles")
     }
+
 
     private fun saveCheckedFiles() {
         val sharedPreferences = context.getSharedPreferences("checked_files", Context.MODE_PRIVATE)
         val editor = sharedPreferences.edit()
-        editor.putStringSet("checked_files_set", checkedFiles)
+        val sortedFiles = checkedFiles.sorted().toSet()
+        editor.putStringSet("checked_files_set", sortedFiles)
         editor.apply()
-        Log.i("ReportViewModel", "Сохранены проверенные файлы: $checkedFiles")
+        Log.i("ReportViewModel", "Сохранены проверенные файлы: $sortedFiles")
     }
+
 
     fun updateReportItems(items: List<ReportItem>) {
         reportItems.value = items
@@ -74,6 +77,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             val storageRef: StorageReference = storage.reference.child("reports/")
             val result = storageRef.listAll().await()
             val newFiles = mutableListOf<String>()
+
             for (fileRef in result.items) {
                 if (!checkedFiles.contains(fileRef.name)) {
                     checkedFiles.add(fileRef.name)
@@ -83,10 +87,11 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                     counter.value++
                 }
             }
+
             if (newFiles.isEmpty()) {
                 Log.i("ReportViewModel", "Новых файлов не найдено")
             } else {
-                newFilesState.value = newFiles
+                newFilesState.value = newFiles.sorted()
                 hasNewFiles.value = true
                 saveCheckedFiles() // Сохранение обновленного списка проверенных файлов
             }
@@ -94,6 +99,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             Log.e("ReportViewModel", "Ошибка при проверке новых файлов: ${e.message}")
         }
     }
+
 
     private suspend fun notifyNewFile(fileName: String) {
         try {
