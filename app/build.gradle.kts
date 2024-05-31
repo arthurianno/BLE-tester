@@ -85,16 +85,9 @@ dependencies {
     implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.0")
     implementation ("androidx.compose.runtime:runtime-livedata:1.6.7")
     implementation ("no.nordicsemi.android:ble-livedata:2.7.5")
-    implementation ("com.google.firebase:firebase-storage:21.0.0")
-    implementation ("com.google.firebase:firebase-auth:23.0.0")
-    implementation (platform("com.google.firebase:firebase-bom:31.2.0"))
-    implementation ("com.google.firebase:firebase-auth:23.0.0")
-    implementation ("com.google.firebase:firebase-database:21.0.0")
-    implementation ("com.google.firebase:firebase-messaging:24.0.0")
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
-    implementation ("androidx.datastore:datastore-android:1.1.1")
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation ("androidx.compose.material:material")
 
 
 

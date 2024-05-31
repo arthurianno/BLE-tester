@@ -8,10 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bletester.ReportItem
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageException
-import com.google.firebase.storage.StorageReference
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -19,8 +15,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -29,16 +25,29 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     val toastMessage = MutableStateFlow<String?>(null)
     private val newFilesState = MutableStateFlow<List<String>>(emptyList())
     private val hasNewFiles = MutableStateFlow(false)
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
     private val addressRange = mutableStateOf<Pair<String, String>?>(null)
     val counter = MutableStateFlow(0)
     private val checkedFiles = mutableSetOf<String>()
     private var checkJob: Job? = null
+    private val dcimDirectory: File? = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    private val yourDirectory = File(dcimDirectory, "BLE Tester Directory")
+
 
     init {
         loadCheckedFiles()
+        createReportsDirectory()
         startCheckingForNewFiles()
     }
+
+    private fun createReportsDirectory() {
+        if (!yourDirectory.exists()) {
+            yourDirectory.mkdirs()
+            Log.i("YourTag", "Папка создана: ${yourDirectory.absolutePath}")
+        } else {
+            Log.i("YourTag", "Папка уже существует: ${yourDirectory.absolutePath}")
+        }
+    }
+
 
     private fun loadCheckedFiles() {
         val sharedPreferences = context.getSharedPreferences("checked_files", Context.MODE_PRIVATE)
@@ -46,7 +55,6 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         checkedFiles.addAll(filesSet.sorted())
         Log.i("ReportViewModel", "Загружены проверенные файлы: $checkedFiles")
     }
-
 
     private fun saveCheckedFiles() {
         val sharedPreferences = context.getSharedPreferences("checked_files", Context.MODE_PRIVATE)
@@ -56,7 +64,6 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         editor.apply()
         Log.i("ReportViewModel", "Сохранены проверенные файлы: $sortedFiles")
     }
-
 
     fun updateReportItems(items: List<ReportItem>) {
         reportItems.value = items
@@ -72,18 +79,19 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-    private suspend fun checkForNewFiles() {
-        try {
-            val storageRef: StorageReference = storage.reference.child("reports/")
-            val result = storageRef.listAll().await()
-            val newFiles = mutableListOf<String>()
 
-            for (fileRef in result.items) {
-                if (!checkedFiles.contains(fileRef.name)) {
-                    checkedFiles.add(fileRef.name)
-                    newFiles.add(fileRef.name)
-                    notifyNewFile(fileRef.name)
-                    Log.i("ReportViewModel", "Найден новый файл: ${fileRef.name}")
+    private fun checkForNewFiles() {
+        try {
+            val newFiles = mutableListOf<String>()
+            val files = yourDirectory.listFiles()
+            Log.i("ReportViewModel", "Проверка директории: ${yourDirectory.absolutePath}, Файлы: ${files?.map { it.name }}")
+            files?.forEach { file ->
+                Log.i("ReportViewModel", "Проверка файла: ${file.name}")
+                if (file.isFile && !checkedFiles.contains(file.name)) {
+                    checkedFiles.add(file.name)
+                    newFiles.add(file.name)
+                    notifyNewFile(file.name)
+                    Log.i("ReportViewModel", "Найден новый файл: ${file.name}")
                     counter.value++
                 }
             }
@@ -93,7 +101,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             } else {
                 newFilesState.value = newFiles.sorted()
                 hasNewFiles.value = true
-                saveCheckedFiles() // Сохранение обновленного списка проверенных файлов
+                saveCheckedFiles()
             }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при проверке новых файлов: ${e.message}")
@@ -101,7 +109,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
 
 
-    private suspend fun notifyNewFile(fileName: String) {
+    private  fun notifyNewFile(fileName: String) {
         try {
             toastMessage.value = "Найден новый отчет: $fileName"
             loadReportFromFile(fileName)
@@ -118,28 +126,14 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
     fun saveReport(fileName: String, reportItems: List<ReportItem>) {
         try {
-            FirebaseAuth.getInstance().signInAnonymously()
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        val storageRef: StorageReference = storage.reference.child("reports/$fileName")
-
-                        val content = generateReportContent(reportItems)
-                        val contentBytes = content.toByteArray()
-
-                        val uploadTask = storageRef.putBytes(contentBytes)
-                        uploadTask.addOnSuccessListener {
-                            Log.i("ReportViewModel", "Отчет успешно загружен в Firebase Storage")
-                            toastMessage.value = "Отчет успешно загружен в Firebase Storage"
-                        }.addOnFailureListener { exception ->
-                            Log.e("ReportViewModel", "Ошибка при загрузке отчета: ${exception.message}")
-                            toastMessage.value = "Ошибка загрузки отчета: ${exception.message}"
-                        }
-                    } else {
-                        Log.e("FirebaseAuth", "signInAnonymously:failure", task.exception)
-                    }
-                }
+            val file = File(yourDirectory, fileName)
+            val content = generateReportContent(reportItems)
+            file.writeText(content)
+            Log.i("ReportViewModel", "Отчет успешно сохранен локально: ${file.absolutePath}")
+            toastMessage.value = "Отчет успешно сохранен локально"
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
+            toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
     }
 
@@ -158,33 +152,29 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         return content.toString()
     }
 
-    suspend fun isReportFileExists(fileName: String): Boolean {
+     fun isReportFileExists(fileName: String): Boolean {
         return try {
-            val storageRef: StorageReference = storage.reference.child("reports/")
-            val result = storageRef.listAll().await()
-            result.items.any { it.name == fileName }
+            val file = File(yourDirectory, fileName)
+            file.exists()
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при проверке существования файла отчета: ${e.message}")
             false
         }
     }
 
-    suspend fun loadReportFromFile(fileName: String): Pair<String?, String?> {
+     fun loadReportFromFile(fileName: String): Pair<String?, String?> {
         return try {
-            val storageRef: StorageReference = storage.reference.child("reports/$fileName")
-            val maxDownloadSizeBytes: Long = 10 * 1024 * 1024 // 10 MB
-            val byteArray = storageRef.getBytes(maxDownloadSizeBytes).await()
-
-            val fileContent = byteArray?.let {
-                String(it)
+            val file = File(yourDirectory, fileName)
+            if (!file.exists()) {
+                Log.e("ReportViewModel", "Файл не найден: $fileName")
+                return Pair(null, null)
             }
 
-            fileContent?.let {
-                saveToDownloads(fileName, it)
-            }
+            val fileContent = file.readText()
+            //saveToDownloads(fileName, fileContent)
 
             val rangeRegex = Regex("Диапазон адресов: (\\d+) - (\\d+)")
-            val matchResult = rangeRegex.find(fileContent ?: "")
+            val matchResult = rangeRegex.find(fileContent)
             val range = matchResult?.let {
                 val startAddress = it.groupValues[1]
                 val endAddress = it.groupValues[2]
@@ -195,12 +185,8 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             }
 
             Pair(fileContent, range?.let { "${it.first} - ${it.second}" })
-        } catch (e: StorageException) {
-            if (e.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND) {
-                Log.e("ReportViewModel", "Файл не найден: $fileName")
-            } else {
-                Log.e("ReportViewModel", "Ошибка при загрузке отчета из файла: ${e.message}")
-            }
+        } catch (e: IOException) {
+            Log.e("ReportViewModel", "Ошибка при загрузке отчета из файла: ${e.message}")
             Pair(null, null)
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при загрузке отчета из файла: ${e.message}")
@@ -208,14 +194,14 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-    private fun saveToDownloads(fileName: String, content: String) {
-        try {
-            val downloadsPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val file = File(downloadsPath, "$fileName.txt")
-            file.writeText(content)
-            Log.i("ReportViewModel", "Файл сохранен в Downloads: ${file.absolutePath}")
-        } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при сохранении отчета в Downloads: ${e.message}")
-        }
-    }
+//    private fun saveToDownloads(fileName: String, content: String) {
+//        try {
+//            val downloadsPath = yourDirectory
+//            val file = File(downloadsPath, "$fileName.txt")
+//            file.writeText(content)
+//            Log.i("ReportViewModel", "Отчет сохранен в Downloads: ${file.absolutePath}")
+//        } catch (e: Exception) {
+//            Log.e("ReportViewModel", "Ошибка при сохранении отчета в Downloads: ${e.message}")
+//        }
+//    }
 }
