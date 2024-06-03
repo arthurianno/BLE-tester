@@ -1,5 +1,6 @@
 
 import android.bluetooth.BluetoothAdapter
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -132,7 +133,7 @@ fun ReportScreen(
                                     coroutineScope.launch {
                                         val exists = reportViewModel.isReportFileExists(fileNameInput)
                                         if (exists) {
-                                            val content = reportViewModel.loadReportFromFile(fileNameInput)
+                                            val content = reportViewModel.loadTaskFromIni(fileNameInput)
                                             content.let {
                                                 Toast.makeText(context, "Файл найден и загружен!", Toast.LENGTH_LONG).show()
                                             }
@@ -188,6 +189,7 @@ fun ReportScreen(
         SaveFileDialog(
             onSave = { fileName ->
                 reportViewModel.saveReport(fileName, reportItems.value)
+                Log.e("ReportScreen","checking filename : $fileName and value: ${reportItems.value}")
                 showDialog = false
             },
             onCancel = { showDialog = false }

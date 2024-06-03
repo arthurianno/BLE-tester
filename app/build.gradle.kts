@@ -88,6 +88,7 @@ dependencies {
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
     implementation ("androidx.work:work-runtime-ktx:2.9.0")
     implementation ("androidx.compose.material:material")
+    implementation ("org.ini4j:ini4j:0.5.4")
 
 
 

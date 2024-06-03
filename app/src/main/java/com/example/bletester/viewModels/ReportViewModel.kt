@@ -15,8 +15,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.ini4j.Wini
 import java.io.File
-import java.io.IOException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,8 +30,9 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private val checkedFiles = mutableSetOf<String>()
     private var checkJob: Job? = null
     private val dcimDirectory: File? = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    private val yourDirectory = File(dcimDirectory, "BLE Tester Directory")
-
+    private val bleTesterDirectory = File(dcimDirectory, "BLE Tester Directory")
+    private val reportsDirectory = File(bleTesterDirectory, "Reports")
+    private val tasksDirectory = File(bleTesterDirectory, "Tasks")
 
     init {
         loadCheckedFiles()
@@ -40,11 +41,13 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
 
     private fun createReportsDirectory() {
-        if (!yourDirectory.exists()) {
-            yourDirectory.mkdirs()
-            Log.i("YourTag", "Папка создана: ${yourDirectory.absolutePath}")
-        } else {
-            Log.i("YourTag", "Папка уже существует: ${yourDirectory.absolutePath}")
+        listOf(bleTesterDirectory, reportsDirectory, tasksDirectory).forEach { directory ->
+            if (!directory.exists()) {
+                directory.mkdirs()
+                Log.i("YourTag", "Папка ${directory.name} создана: ${directory.absolutePath}")
+            } else {
+                Log.i("YourTag", "Папка ${directory.name} уже существует: ${directory.absolutePath}")
+            }
         }
     }
 
@@ -79,19 +82,14 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-
     private fun checkForNewFiles() {
         try {
             val newFiles = mutableListOf<String>()
-            val files = yourDirectory.listFiles()
-            Log.i("ReportViewModel", "Проверка директории: ${yourDirectory.absolutePath}, Файлы: ${files?.map { it.name }}")
-            files?.forEach { file ->
-                Log.i("ReportViewModel", "Проверка файла: ${file.name}")
+            tasksDirectory.listFiles()?.forEach { file ->
                 if (file.isFile && !checkedFiles.contains(file.name)) {
                     checkedFiles.add(file.name)
                     newFiles.add(file.name)
                     notifyNewFile(file.name)
-                    Log.i("ReportViewModel", "Найден новый файл: ${file.name}")
                     counter.value++
                 }
             }
@@ -108,11 +106,11 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-
-    private  fun notifyNewFile(fileName: String) {
+    private fun notifyNewFile(fileName: String) {
         try {
             toastMessage.value = "Найден новый отчет: $fileName"
-            loadReportFromFile(fileName)
+            Log.e("ReportViewModel", "Новый Отчет! : $fileName")
+            loadTaskFromIni(fileName)
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при уведомлении о новом файле: ${e.message}")
         }
@@ -126,35 +124,76 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
     fun saveReport(fileName: String, reportItems: List<ReportItem>) {
         try {
-            val file = File(yourDirectory, fileName)
-            val content = generateReportContent(reportItems)
-            file.writeText(content)
-            Log.i("ReportViewModel", "Отчет успешно сохранен локально: ${file.absolutePath}")
-            toastMessage.value = "Отчет успешно сохранен локально"
+            createReportsDirectory()
+
+            val file = File(reportsDirectory, "$fileName.ini")
+
+            if (!file.exists()) {
+                file.createNewFile()
+            }
+
+            if (reportItems.isNotEmpty()) {
+                val data = generateIniData(reportItems)
+                saveIniFile(file.absolutePath.toString(), data)
+                Log.i("ReportViewModel", "Отчет успешно сохранен локально: ${file.absolutePath}")
+                toastMessage.value = "Отчет успешно сохранен локально"
+            } else {
+                Log.e("ReportViewModel", "Отчет пустой, данные не сохранены")
+                toastMessage.value = "Отчет пустой, данные не сохранены"
+            }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
             toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
     }
 
-    private fun generateReportContent(reportItems: List<ReportItem>): String {
-        val separator = "--------------------------------------------------------------------\n"
-        val failedDevicesCount = reportItems.count { it.status == "Не прошло проверку" }
-        val header = "ОТЧЕТ\nДиапазон адресов: 24050000001 - 24050000002 \nУстройств не прошедших проверку: $failedDevicesCount\n\n"
 
-        val content = StringBuilder(header)
-        for (item in reportItems) {
-            content.append(separator)
-            val line = "Device: ${item.device}\nDevice Address: ${item.deviceAddress}\nStatus: ${item.status}\nInterpretation: ${item.interpretation}\n\n"
-            content.append(line)
-            content.append(separator)
+
+
+    private fun saveIniFile(fileName: String, data: Map<String, Map<String, String>>) {
+        val file = File(fileName)
+        val ini = Wini(file)
+
+        data.forEach { (section, properties) ->
+            val sectionObj = ini.add(section)
+            properties.forEach { (key, value) ->
+                sectionObj[key] = value
+            }
         }
-        return content.toString()
+
+        ini.store(file)
     }
 
-     fun isReportFileExists(fileName: String): Boolean {
+
+    private fun generateIniData(reportItems: List<ReportItem>): Map<String, Map<String, String>> {
+        Log.e("ReportViewModel", "Number of report items: ${reportItems.size}") // Проверка количества элементов в отчете
+        val data = mutableMapOf<String, MutableMap<String, String>>()
+
+        val failedDevicesCount = reportItems.count { it.status == "Не прошло проверку" }
+        val headerSection = mutableMapOf(
+            "Диапазон адресов" to "24050000001 - 24050000002",
+            "Устройств не прошедших проверку" to failedDevicesCount.toString()
+        )
+        data["ОТЧЕТ"] = headerSection  // Добавление свойств для раздела "ОТЧЕТ"
+
+        reportItems.forEachIndexed { index, item ->
+            val sectionName = "Device${index + 1}"
+            val properties = mutableMapOf(
+                "Device" to item.device,
+                "Device Address" to item.deviceAddress,
+                "Status" to item.status,
+                "Interpretation" to item.interpretation
+            )
+            data[sectionName] = properties
+        }
+
+        return data
+    }
+
+
+    fun isReportFileExists(fileName: String): Boolean {
         return try {
-            val file = File(yourDirectory, fileName)
+            val file = File(reportsDirectory, fileName)
             file.exists()
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при проверке существования файла отчета: ${e.message}")
@@ -162,46 +201,28 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
 
-     fun loadReportFromFile(fileName: String): Pair<String?, String?> {
-        return try {
-            val file = File(yourDirectory, fileName)
-            if (!file.exists()) {
-                Log.e("ReportViewModel", "Файл не найден: $fileName")
-                return Pair(null, null)
+    fun loadTaskFromIni(fileName: String) {
+        val file = File(tasksDirectory, fileName)
+        if (!file.exists()) {
+            Log.e("ReportViewModel", "Файл не найден: $fileName")
+            return
+        }
+
+        val ini = Wini(file)
+
+        // Пройти по всем секциям в INI файле
+        ini.forEach { sectionName, section ->
+            // Проверить, начинается ли имя секции с "Task"
+            if (sectionName.startsWith("Task")) {
+                val type = section["Type"]
+                val rangeStart = section["RangeStart"]
+                val rangeStop = section["RangeStop"]
+
+                // Вывести в лог соответствующие значения
+                Log.i("ReportItem", "Type: $type")
+                Log.i("ReportItem", "RangeStart: $rangeStart")
+                Log.i("ReportItem", "RangeStop: $rangeStop")
             }
-
-            val fileContent = file.readText()
-            //saveToDownloads(fileName, fileContent)
-
-            val rangeRegex = Regex("Диапазон адресов: (\\d+) - (\\d+)")
-            val matchResult = rangeRegex.find(fileContent)
-            val range = matchResult?.let {
-                val startAddress = it.groupValues[1]
-                val endAddress = it.groupValues[2]
-                val addressPair = Pair(startAddress, endAddress)
-                addressRange.value = addressPair
-                Log.e("ReportCheck", "Обновление ${addressRange.value}")
-                addressPair
-            }
-
-            Pair(fileContent, range?.let { "${it.first} - ${it.second}" })
-        } catch (e: IOException) {
-            Log.e("ReportViewModel", "Ошибка при загрузке отчета из файла: ${e.message}")
-            Pair(null, null)
-        } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при загрузке отчета из файла: ${e.message}")
-            Pair(null, null)
         }
     }
-
-//    private fun saveToDownloads(fileName: String, content: String) {
-//        try {
-//            val downloadsPath = yourDirectory
-//            val file = File(downloadsPath, "$fileName.txt")
-//            file.writeText(content)
-//            Log.i("ReportViewModel", "Отчет сохранен в Downloads: ${file.absolutePath}")
-//        } catch (e: Exception) {
-//            Log.e("ReportViewModel", "Ошибка при сохранении отчета в Downloads: ${e.message}")
-//        }
-//    }
 }

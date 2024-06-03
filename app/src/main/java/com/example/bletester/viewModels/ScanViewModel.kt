@@ -25,7 +25,6 @@
     @HiltViewModel
     @SuppressLint("StaticFieldLeak")
         class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager,private val reportViewModel: ReportViewModel) : ViewModel() {
-
             val toastMessage = MutableStateFlow<String?>(null)
             var deviceQueue: Queue<BluetoothDevice> = LinkedList()
             var foundDevices = mutableStateListOf<BluetoothDevice>()
@@ -44,8 +43,6 @@
             private var connectionAttempts = 0
             private var errorMessage: String? = null
             private var stopRequested = false
-
-
         init {
             settings = buildSettings()
             filters = buildFilter()
@@ -167,7 +164,7 @@
                                                     if (!checkedDevices.any { it.address == device.address }) {
                                                         checkedDevices.add(device)
                                                     }
-                                                    Log.e("RemoveFoundCheck2","removed ${device}")
+                                                    Log.e("RemoveFoundCheck2","removed $device")
                                                     iterator.remove()
                                                     break
                                                 }

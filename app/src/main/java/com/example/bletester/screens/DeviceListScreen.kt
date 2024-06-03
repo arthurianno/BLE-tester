@@ -36,12 +36,14 @@ import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -62,6 +64,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.example.bletester.permissions.PermissionUtils
 import com.example.bletester.permissions.SystemBroadcastReceiver
 import com.example.bletester.screens.dialogs.AnimatedCounter
+import com.example.bletester.screens.dialogs.CustomProgressBar
 import com.example.bletester.viewModels.ReportViewModel
 import com.example.bletester.viewModels.ScanViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -84,9 +87,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
     val lifecycleOwner = LocalLifecycleOwner.current
-    var startRange by remember { mutableStateOf(0L) }
+    var startRange by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
-    var endRange by remember { mutableStateOf(0L) }
+    var endRange by remember { mutableLongStateOf(0L) }
     val toastMessage by scanViewModel.toastMessage.collectAsState()
     val optionTypeName = listOf(
         DeviceListOption.ALL_DEVICES to "All",
@@ -166,7 +169,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -204,7 +207,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     }
                 }
             }
-
             AnimatedCounter(
                 count = counterState,
                 Modifier.clickable {
@@ -213,6 +215,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     }
                 }
             )
+                CustomProgressBar()
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -313,6 +316,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Button(
                     onClick = {
                         scanViewModel.clearData()
+                        scanViewModel.deviceQueue.clear()
                         foundedDevice.clear()
                         checkedDevice.clear()
                         scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
@@ -326,20 +330,27 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 }
             }
 
-            LazyColumn {
-                val devicesToShow = when (selectedModeType.first) {
-                    DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
-                    DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
-                    DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
-                }
-                itemsIndexed(devicesToShow) { _, device ->
-                    DeviceListItem(deviceName = device.name, deviceAddress = device.address)
+            Surface(
+                modifier = Modifier
+                    .padding(16.dp),
+                color = Color.White,
+                shape = RoundedCornerShape(10.dp),
+                shadowElevation = 6.dp
+            ) {
+                LazyColumn {
+                    val devicesToShow = when (selectedModeType.first) {
+                        DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
+                        DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
+                        DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
+                    }
+                    itemsIndexed(devicesToShow) { _, device ->
+                        DeviceListItem(deviceName = device.name, deviceAddress = device.address)
+                    }
                 }
             }
         }
     }
 }
-
 @Composable
 fun DeviceListItem(deviceName: String, deviceAddress: String) {
     var expanded by remember { mutableStateOf(false) }
@@ -347,25 +358,25 @@ fun DeviceListItem(deviceName: String, deviceAddress: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(5.dp)
             .clickable { expanded = !expanded }
             .clip(RoundedCornerShape(8.dp)),
-        elevation = 4.dp
+        elevation = 8.dp
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(10.dp)
         ) {
             Text(
                 text = "Device Name: $deviceName",
                 fontFamily = FontFamily.Serif,
-                fontSize = 18.sp,
+                fontSize = 14.sp,
                 color = if (expanded) Color.Blue else Color.Black,
             )
             if (expanded) {
                 Text(
                     text = "MAC Address: $deviceAddress",
                     fontFamily = FontFamily.Serif,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = Color.Gray,
                 )
             }
