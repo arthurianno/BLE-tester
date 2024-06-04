@@ -113,7 +113,7 @@ fun ReportScreen(
     var showDialog by remember { mutableStateOf(false) }
     var alertShowDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    reportViewModel.updateReportItems(sampleDataUncheck,sampleDataCheck)
+
 
     SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver

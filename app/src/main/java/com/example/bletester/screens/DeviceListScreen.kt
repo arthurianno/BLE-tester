@@ -163,13 +163,13 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     LaunchedEffect(addressRange) {
         Log.e("DevicesListScreen"," trying to Changing address")
         addressRange?.let { (start, end) ->
-            startRange = start?.toLongOrNull() ?: 0L
-            endRange = end?.toLongOrNull() ?: 0L
+            startRange = start.toLongOrNull() ?: 0L
+            endRange = end.toLongOrNull() ?: 0L
             Log.e("DevicesListScreen","Changing address 1 and 2 ")
             if (startRange != 0L && endRange != 0L) {
                 scanViewModel.clearData()
                 scanViewModel.deviceQueue.clear()
-                foundedDevice.clear()
+                //foundedDevice.clear()
                 checkedDevice.clear()
                 scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
                 scanViewModel.toastMessage.value = "Сканирование начато"
@@ -342,7 +342,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     onClick = {
                         scanViewModel.clearData()
                         scanViewModel.deviceQueue.clear()
-                        foundedDevice.clear()
+                        //foundedDevice.clear()
                         checkedDevice.clear()
                         scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
                         showToast(context, "Сканирование начато")

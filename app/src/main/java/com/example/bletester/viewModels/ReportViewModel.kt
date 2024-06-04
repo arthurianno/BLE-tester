@@ -50,11 +50,15 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
     fun updateReportItems(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
-        reportItems.value = itemsUnchecked
-        approvedItems = itemsApproved
-        Log.e("TestReportView", "$reportItems")
-        Log.e("TestReportView", "$approvedItems")
+        if (reportItems.value != itemsUnchecked || approvedItems != itemsApproved) {
+            reportItems.value = itemsUnchecked
+            approvedItems = itemsApproved
+            Log.e("TestReportView", "$reportItems")
+            Log.e("TestReportView", "$approvedItems")
+            saveReport("04062024",reportItems.value)
+        }
     }
+
 
     private fun startObservingTasksDirectory() {
         tasksDirectoryObserver = object : FileObserver(tasksDirectory.path, CREATE or DELETE) {

@@ -104,102 +104,99 @@
             reportViewModel.updateReportItems(uncheckedReportItems,approvedReportItems)
             Log.e("ScanViewModel","${unCheckedDevices.toList()}")
         }
+        @SuppressLint("MissingPermission")
         private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {
             @SuppressLint("MissingPermission")
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                super.onScanResult(callbackType, result)
-                if (stopRequested) return
-                val device = result.device
-                val deviceName = device.name ?: return // If device name is null, skip
+                synchronized(this) {
+                    super.onScanResult(callbackType, result)
+                    if (stopRequested) return
+                    val device = result.device
+                    val deviceName = device.name ?: return
 
-                // List of last four digits to check
-                val validLastFourDigits = listOf("0001", "0002", "0325")
+                    val validLastFourDigits = listOf("0001", "0002", "0325")
 
-                // Check if device name contains "Sat"
-                if (deviceName.contains("Satellite")) {
-                    val lastFourDigits = deviceName.takeLast(4)
-
-                    // Check if last four digits are in the valid list
-                    if (lastFourDigits in validLastFourDigits) {
-                        // Check if device is not already processed
-                        if (!processedDevices.contains(device.address)) {
-                            Log.e("ScanViewModel", "device $deviceName")
-                            deviceQueue.add(device)
-                            if (!foundDevices.any { it.address == device.address } && !checkedDevices.any{it.address == device.address}) {
-                                Log.e("AdddFoundCheck1","addded $device")
-                                foundDevices.add(device)
-                            }
-                            if(!isConnecting) {
-                                connectToDeviceSequentially()
-                            }
-                            bleControlManager.setBleCallbackEvent(object :BleCallbackEvent{
-                                override fun onHandleCheck() {
-                                    isConnecting = false
-                                    checkCount++
-                                    val totalCount = end - start + 1
-                                    if(totalCount == checkCount){
-                                        checkCount = 0
-                                        connectToDeviceSequentially()
-                                    }
-
-                                }
-                                override fun onVersionCheck(version: String) {
-                                    val versionPrefix = version.firstOrNull()
-                                    val versionNumber = version.substring(1).toLongOrNull()
-
-                                    if (versionPrefix == null || versionNumber == null) {
-                                        Log.e("ScanViewModel", "Неверный формат версии")
-
+                    if (deviceName.contains("Satellite")) {
+                        val lastFourDigits = deviceName.takeLast(4)
+                        if (lastFourDigits in validLastFourDigits) {
+                            if (!processedDevices.contains(device.address)) {
+                                Log.e("ScanViewModel", "device $deviceName")
+                                if (!isConnecting) {
+                                    // Проверка, находится ли устройство уже в очереди
+                                    if (deviceQueue.any { it.address == device.address }) {
                                         return
                                     }
-
-                                    Log.e("Scan", "Version: $version")
-
-                                    if (versionNumber in start..end && versionPrefix.toString().contains(letter)) {
-                                        Log.e("ScanViewModel", "Серийный номер устройства в диапазоне!")
-                                        synchronized(foundDevices) {
-                                            val iterator = foundDevices.iterator()
-                                            while (iterator.hasNext()) {
-                                                val foundDevice = iterator.next()
-                                                if (foundDevice.address == device.address) {
-                                                    if (!checkedDevices.any { it.address == device.address }) {
-                                                        checkedDevices.add(device)
-                                                    }
-                                                    Log.e("RemoveFoundCheck2","removed $device")
-                                                    iterator.remove()
-                                                    break
-                                                }
-                                            }
-                                        }
-
-
-                                    } else {
-                                        Log.e("ScanViewModel", "Серийный номер устройства вне диапазона!")
-                                        synchronized(foundDevices) {
-                                            val iterator = foundDevices.iterator()
-                                            while (iterator.hasNext()) {
-                                                val foundDevice = iterator.next()
-                                                if (foundDevice.address == device.address) {
-                                                    Log.e("RemoveFoundCheck3","removed $device")
-                                                    if (!unCheckedDevices.any { it.address == device.address }) {
-                                                        unCheckedDevices.add(device)
-
-                                                    }
-                                                    break
-                                                }
-                                            }
-                                            iterator.remove()
+                                    deviceQueue.add(device)
+                                    foundDevices.add(device)
+                                    connectToDeviceSequentially()
+                                }
+                                bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
+                                    override fun onHandleCheck() {
+                                        isConnecting = false
+                                        checkCount++
+                                        val totalCount = end - start + 1
+                                        if (totalCount == checkCount) {
+                                            checkCount = 0
+                                            connectToDeviceSequentially()
                                         }
                                     }
-                                }
-                            })
+
+                                    override fun onVersionCheck(version: String) {
+                                        val versionPrefix = version.firstOrNull()
+                                        val versionNumber = version.substring(1).toLongOrNull()
+
+                                        if (versionPrefix == null || versionNumber == null) {
+                                            Log.e("ScanViewModel", "Invalid version format")
+                                            return
+                                        }
+
+                                        Log.e("ScanViewModel", "Version: $version")
+
+                                        if (versionNumber in start..end && versionPrefix.toString().contains(letter)) {
+                                            Log.e("ScanViewModel", "Device serial number in range!")
+                                            updateDeviceLists(device, true)
+                                        } else {
+                                            Log.e("ScanViewModel", "Device serial number out of range!")
+                                            updateDeviceLists(device, false)
+                                        }
+                                    }
+                                })
+                            }
                         }
                     }
                 }
             }
         }
-        @SuppressLint("MissingPermission")
 
+
+
+        @Synchronized
+        private fun updateDeviceLists(device: BluetoothDevice, isChecked: Boolean) {
+            val iterator = foundDevices.iterator()
+            while (iterator.hasNext()) {
+                val foundDevice = iterator.next()
+                if (foundDevice.address == device.address) {
+                    if (isChecked) {
+                        if (!checkedDevices.any { it.address == device.address }) {
+                            checkedDevices.add(device)
+                            Log.e("ScanViewModel", "Device added to checkedDevices: $device")
+                        }
+                    } else {
+                        if (!unCheckedDevices.any { it.address == device.address }) {
+                            unCheckedDevices.add(device)
+                            Log.e("ScanViewModel", "Device added to unCheckedDevices: $device")
+                        }
+                    }
+                    Log.e("ScanViewModel", "Removed $device from foundDevices")
+                    iterator.remove() // Удаление элемента с помощью итератора
+                    processedDevices.add(device.address)
+                    return // Добавьте эту строку, чтобы выйти из цикла после удаления элемента
+                }
+            }
+        }
+
+
+        @SuppressLint("MissingPermission")
         fun connectToDeviceSequentially() {
             if (deviceQueue.isNotEmpty() && !isConnecting) {
                 isConnecting = true
@@ -207,37 +204,41 @@
                 device?.let {
                     bleControlManager.connect(it)
                         .done {
-                            Log.d("BleControlManager", "Подключено к устройству ${device.name}")
+                            Log.d("BleControlManager", "Connected to device ${device.name}")
                             bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
                         }
                         .fail { device, status ->
                             isConnecting = false
-                            Log.e("BleControlManager", "Не удалось подключиться к устройству ${device.name}: $status")
-                            errorMessage = "Не удалось подключиться: $status"
-                            unCheckedDevices.add(device)
-                            foundDevices.remove(device)
+                            Log.e("BleControlManager", "Failed to connect to device ${device.name}: $status")
+                            errorMessage = "Failed to connect: $status"
+                            updateDeviceLists(device, false)
                             connectToDeviceSequentially()
                         }
                         .enqueue()
                 }
             } else {
-                Log.d("BleControlManager", "Проверка необработанных устройств")
-                toastMessage.value = "Проверка необработанных устройств"
-                connectionAttempts++
-                if (connectionAttempts >= 3) {
+                Log.d("BleControlManager", "Checking unprocessed devices")
+                toastMessage.value = "Checking unprocessed devices"
+                if (unCheckedDevices.isEmpty()) {
+                    Log.d("BleControlManager", "All devices processed")
+                    toastMessage.value = "All devices processed"
                     updateReportViewModel()
-                    Log.d("BleControlManager", "Все устройства обработаны")
-                    toastMessage.value = "Все устройства обработаны"
-                } else if (unCheckedDevices.isNotEmpty()) {
+                }
+                connectionAttempts++
+                if (unCheckedDevices.isNotEmpty()) {
                     val newDevices = unCheckedDevices.filter { device ->
                         !deviceQueue.any { it.address == device.address }
                     }
                     deviceQueue.addAll(newDevices)
                     unCheckedDevices.clear()
                     connectToDeviceSequentially()
+                } else if (foundDevices.isNotEmpty()) {
+                    // Если есть еще устройства в foundDevices, приступаем к следующему
+                    connectToDeviceSequentially()
                 }
             }
         }
+
 
         fun clearData() {
             deviceQueue.clear()
