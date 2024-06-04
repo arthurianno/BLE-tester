@@ -100,7 +100,8 @@
             stopScanning()
             Log.e("ScanViewModel","Scan Stop!")
             val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
-            reportViewModel.updateReportItems(uncheckedReportItems)
+            val approvedReportItems = createReportItems(unCheckedDevices.distinct(), "Checked")
+            reportViewModel.updateReportItems(uncheckedReportItems,approvedReportItems)
             Log.e("ScanViewModel","${unCheckedDevices.toList()}")
         }
         private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {

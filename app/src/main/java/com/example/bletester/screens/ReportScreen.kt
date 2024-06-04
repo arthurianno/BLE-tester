@@ -53,18 +53,56 @@ import kotlinx.coroutines.launch
 fun ReportScreen(
     onBluetoothStateChanged: () -> Unit,
 ) {
-    val sampleData = listOf(
+    val sampleDataUncheck = listOf(
         ReportItem(
             device = "Device 1",
             deviceAddress = "00:11:22:33:44:55",
-            status = "Прошло проверку",
-            interpretation = "Устройство прошло проверку"
+            status = "Не прошло проверку",
+            interpretation = "Устройство не прошло проверку"
         ),
         ReportItem(
             device = "Device 2",
             deviceAddress = "66:77:88:99:AA:BB",
             status = "Не прошло проверку",
             interpretation = "Устройство не прошло проверку: Ошибка подключения."
+        ),
+        ReportItem(
+            device = "Device 3",
+            deviceAddress = "66:77:88:99:AA:BB",
+            status = "Не прошло проверку",
+            interpretation = "Устройство не прошло проверку: Ошибка подключения."
+        ),
+        ReportItem(
+            device = "Device 4",
+            deviceAddress = "66:77:88:99:AA:BB",
+            status = "Не прошло проверку",
+            interpretation = "Устройство не прошло проверку: Ошибка подключения."
+        )
+    )
+    val sampleDataCheck = listOf(
+        ReportItem(
+            device = "Device 1",
+            deviceAddress = "00:11:22:33:44:55",
+            status = "прошло проверку",
+            interpretation = "Устройство прошло проверку"
+        ),
+        ReportItem(
+            device = "Device 2",
+            deviceAddress = "66:77:88:99:AA:BB",
+            status = "прошло проверку",
+            interpretation = "Устройство прошло проверку"
+        ),
+        ReportItem(
+            device = "Device 3",
+            deviceAddress = "66:77:88:99:AA:BB",
+            status = "прошло проверку",
+            interpretation = "Устройство прошло проверку"
+        ),
+        ReportItem(
+            device = "Device 4",
+            deviceAddress = "66:77:88:99:AA:BB",
+            status = "прошло проверку",
+            interpretation = "Устройство прошло проверку"
         )
     )
     val reportViewModel: ReportViewModel = hiltViewModel()
@@ -75,6 +113,7 @@ fun ReportScreen(
     var showDialog by remember { mutableStateOf(false) }
     var alertShowDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    reportViewModel.updateReportItems(sampleDataUncheck,sampleDataCheck)
 
     SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
         val action = bluetoothState?.action ?: return@SystemBroadcastReceiver

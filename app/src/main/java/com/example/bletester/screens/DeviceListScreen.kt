@@ -86,6 +86,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
+    val addressRange by reportViewModel.addressRange.collectAsState(null)
     val lifecycleOwner = LocalLifecycleOwner.current
     var startRange by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
@@ -115,6 +116,8 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
+
+
 
     val deviceTypes = listOf("SatelliteOnline", "SatelliteVoice", "AnotherDevice")
     var selectedDeviceType by remember { mutableStateOf(deviceTypes[0]) }
@@ -156,6 +159,28 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             deviceTypeToLetter[selectedDeviceType] ?: ""
         }
     }
+
+    LaunchedEffect(addressRange) {
+        Log.e("DevicesListScreen"," trying to Changing address")
+        addressRange?.let { (start, end) ->
+            startRange = start?.toLongOrNull() ?: 0L
+            endRange = end?.toLongOrNull() ?: 0L
+            Log.e("DevicesListScreen","Changing address 1 and 2 ")
+            if (startRange != 0L && endRange != 0L) {
+                scanViewModel.clearData()
+                scanViewModel.deviceQueue.clear()
+                foundedDevice.clear()
+                checkedDevice.clear()
+                scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
+                scanViewModel.toastMessage.value = "Сканирование начато"
+            }else{
+                Log.e("DevicesListScreen","Address is nulls")
+            }
+        }
+    }
+
+
+
 
     fun showToast(context: Context, message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

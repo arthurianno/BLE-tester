@@ -39,6 +39,4 @@ object AppModule {
         return ReportViewModel(context)
     }
 
-
-
-}
+   }
