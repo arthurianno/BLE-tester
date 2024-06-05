@@ -27,6 +27,7 @@ public class BleControlManager extends BleManager {
     private static final UUID UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
     private static final UUID UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
     private static final UUID UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
+    public String serialNumber = "";
 
     private static BluetoothGattCharacteristic controlRequest;
     private BluetoothGattCharacteristic controlResponse;
@@ -109,6 +110,7 @@ public class BleControlManager extends BleManager {
             controlResponse = null;
             disconnect().enqueue();
             BleControlManager.this.close();
+            bleCallbackEvent.onVersionCheck(serialNumber);
 
         }
 
@@ -147,7 +149,7 @@ public class BleControlManager extends BleManager {
             String hwVer = new String(Arrays.copyOfRange(data, 4, 20), StandardCharsets.US_ASCII).trim().replaceAll("[\\x00-\\x1F]", "");
             //DataItem dataItemHwVer = new DataItem(hwVer, bytesToHex(data), "HW VERSION", false,0x4C,0x10,DataType.CHAR_ARRAY);
             //listOfDataItem.add(dataItemHwVer);
-            bleCallbackEvent.onVersionCheck(hwVer);
+            serialNumber = hwVer;
             Log.d("BleControlManager", "VERSION: " + hwVer);
             sendCommand("ble.off",EntireCheck.default_command);
         }
@@ -158,8 +160,8 @@ public class BleControlManager extends BleManager {
             Log.d("BleControlManager", "updating hwVer " + defaultResponse);
             if(defaultResponse.contains("ble.ok")){
                 if(bleCallbackEvent != null){
-                    bleCallbackEvent.onHandleCheck();
                     disconnect().enqueue();
+                    bleCallbackEvent.onHandleCheck();
                 }
 
             }
