@@ -37,11 +37,14 @@
             private val filters: List<ScanFilter>
             private var scanning = false
             private val handler = android.os.Handler()
-            private var connectionAttemps = 0
             private val scanPeriod: Long = 10000
             private var checkCount = 0L
             private var errorMessage: String? = null
             private var stopRequested = false
+            private var startR : Long? = 0L
+            private var endR : Long? = 0L
+            private var diffRanges : Int? = 0
+            private var counter = 0
             var currentDevice: BluetoothDevice? = null
         init {
             settings = buildSettings()
@@ -60,6 +63,9 @@
             )
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
+            startR = start
+            endR = end
+            diffRanges = (end - start + 1).toInt()
             if (!scanning) {
                 stopRequested = false
                 handler.postDelayed({
@@ -111,7 +117,7 @@
                     val device = result.device
                     val deviceName = device.name ?: return
 
-                    val validLastFourDigits = listOf("0001", "0002", "0003")
+                val validLastFourDigits = listOf("0001", "0002", "0003", "0004", "0005")
 
                     if (deviceName.contains("Satellite")) {
                         val lastFourDigits = deviceName.takeLast(4)
@@ -202,11 +208,7 @@
             foundDevices.clear()
 
         }
-
-
         companion object{
             val entireCheckQueue: Queue<EntireCheck> = LinkedList()
         }
-
-
     }
