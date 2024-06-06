@@ -227,7 +227,7 @@ fun ReportScreen(
     if (showDialog) {
         SaveFileDialog(
             onSave = { fileName ->
-                reportViewModel.saveReport(fileName, reportItems.value)
+                reportViewModel.saveReport(reportItems.value)
                 Log.e("ReportScreen","checking filename : $fileName and value: ${reportItems.value}")
                 showDialog = false
             },

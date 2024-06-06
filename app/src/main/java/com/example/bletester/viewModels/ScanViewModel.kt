@@ -1,30 +1,31 @@
     package com.example.bletester.viewModels
 
     import android.annotation.SuppressLint
-    import android.bluetooth.BluetoothAdapter
-    import android.bluetooth.BluetoothDevice
-    import android.bluetooth.le.ScanCallback
-    import android.bluetooth.le.ScanFilter
-    import android.bluetooth.le.ScanResult
-    import android.bluetooth.le.ScanSettings
-    import android.util.Log
-    import androidx.compose.runtime.mutableStateListOf
-    import androidx.lifecycle.ViewModel
-    import com.example.bletester.EntireCheck
-    import com.example.bletester.ReportItem
-    import com.example.bletester.ble.BleCallbackEvent
-    import com.example.bletester.ble.BleControlManager
-    import dagger.hilt.android.lifecycle.HiltViewModel
-    import kotlinx.coroutines.flow.MutableStateFlow
-    import java.util.LinkedList
-    import java.util.Queue
-    import javax.inject.Inject
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
+import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
+import androidx.lifecycle.ViewModel
+import com.example.bletester.EntireCheck
+import com.example.bletester.ReportItem
+import com.example.bletester.ble.BleCallbackEvent
+import com.example.bletester.ble.BleControlManager
+import com.example.bletester.ble.FileModifyEvent
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import java.util.LinkedList
+import java.util.Queue
+import javax.inject.Inject
 
 
     @Suppress("DEPRECATION")
     @HiltViewModel
     @SuppressLint("StaticFieldLeak")
-        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager,private val reportViewModel: ReportViewModel) : ViewModel() {
+        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager,private val reportViewModel: ReportViewModel) : ViewModel(),FileModifyEvent {
             val toastMessage = MutableStateFlow<String?>(null)
             var deviceQueue: Queue<BluetoothDevice> = LinkedList()
             var deviceQueueProcessed: Queue<BluetoothDevice> = LinkedList()
@@ -47,6 +48,7 @@
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
         init {
+            reportViewModel.registerCallback(this)
             settings = buildSettings()
             filters = buildFilter()
         }
@@ -63,6 +65,7 @@
             )
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
+            clearData()
             startR = start
             endR = end
             diffRanges = (end - start + 1).toInt()
@@ -82,12 +85,13 @@
 
         @SuppressLint("MissingPermission")
         private fun stopScanning() {
-            stopRequested = true // Установить флаг остановки
+            stopRequested = true
             scanning = false
             bluetoothLeScanner?.stopScan(leScanCallback("", 0, 0))
-            deviceQueue.clear() // Очистить очередь
+            deviceQueue.clear()
             Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
         }
+
 
         @SuppressLint("MissingPermission")
         private fun createReportItems(deviceList: List<BluetoothDevice>, status: String): List<ReportItem> {
@@ -104,26 +108,27 @@
         @SuppressLint("MissingPermission")
         private fun updateReportViewModel() {
             val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
-            val approvedReportItems = createReportItems(unCheckedDevices.distinct(), "Checked")
-            reportViewModel.updateReportItems(uncheckedReportItems,approvedReportItems)
-            Log.e("ScanViewModel","${unCheckedDevices.toList()}")
+            val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
+            reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
+            Log.e("ScanViewModel", "${unCheckedDevices.toList()}")
         }
+
+
         @SuppressLint("MissingPermission")
         private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {
-            @SuppressLint("MissingPermission")
+            @SuppressLint("MissingPermission", "SuspiciousIndentation")
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                    super.onScanResult(callbackType, result)
-                    if (stopRequested) return
-                    val device = result.device
-                    val deviceName = device.name ?: return
-
-                val validLastFourDigits = listOf("0001", "0002", "0003", "0004", "0005")
-
+                super.onScanResult(callbackType, result)
+                if (stopRequested) return
+                val device = result.device
+                val deviceName = device.name ?: return
+                val startLastFour = start.toString().takeLast(4)
+                val endLastFour = end.toString().takeLast(4)
                     if (deviceName.contains("Satellite")) {
-                        val lastFourDigits = deviceName.takeLast(4)
-                        if (lastFourDigits in validLastFourDigits) {
-                                Log.e("ScanViewModel", "device $deviceName")
-                            if(!deviceQueue.any{deviceQueue.contains(device)} && !foundDevices.any{foundDevices.contains(device)}){
+                        val lastFourDigits = deviceName.takeLast(4).toInt()
+                        if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
+                            Log.e("ScanViewModel", "device $deviceName")
+                            if (device !in deviceQueue && device !in foundDevices && device !in checkedDevices) {
                                 deviceQueue.add(device)
                                 foundDevices.add(device)
                                 if (currentDevice == null) {
@@ -131,84 +136,117 @@
                                     connectionToAnotherDevice()
                                 }
                             }
-                                bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
+                            bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
 
-                                    override fun onHandleCheck() {
-                                        checkCount++
-                                        val totalCount = end - start + 1
-                                        if (totalCount == checkCount) {
-                                            checkCount = 0
-                                        }
+                                override fun onHandleCheck() {
+                                    checkCount++
+                                    val totalCount = end - start + 1
+                                    if (totalCount == checkCount) {
+                                        checkCount = 0
                                     }
+                                }
 
-                                    override fun onVersionCheck(version: String) {
-                                        val versionPrefix = version.firstOrNull()
-                                        val versionNumber = version.substring(1).toLongOrNull()
-                                        val devicesChecked = deviceQueueProcessed.remove()
+                                override fun onVersionCheck(version: String) {
+                                    val versionPrefix = version.firstOrNull()
+                                    val versionNumber = version.substring(1).toLongOrNull()
+                                    val devicesChecked = deviceQueueProcessed.remove()
 
-                                        if (versionPrefix == null || versionNumber == null) {
-                                            Log.e("ScanViewModel", "Invalid version format")
-                                            currentDevice = null
-                                            connectionToAnotherDevice()
-                                            return
-                                        }
-
-                                        Log.e("ScanViewModel", "Version: $version")
-
-                                        if (versionNumber in start..end && versionPrefix.toString().contains(letter)) {
-                                            Log.e("ScanViewModel", "Device serial number in range!")
-                                            Log.e("ScanViewModel", "Device added to checkedDevices: $devicesChecked")
-                                            checkedDevices.add(devicesChecked)
-                                            currentDevice = null
-                                        } else {
-                                            Log.e("ScanViewModel", "Device serial number out of range!")
-                                        }
+                                    if (versionPrefix == null || versionNumber == null) {
+                                        Log.e("ScanViewModel", "Invalid version format")
                                         currentDevice = null
                                         connectionToAnotherDevice()
+                                        return
                                     }
-                                })
+
+                                    Log.e("ScanViewModel", "Version: $version")
+
+                                    if (versionNumber in start..end && versionPrefix.toString()
+                                            .contains(letter)
+                                    ) {
+                                        Log.e("ScanViewModel", "Device serial number in range!")
+                                        Log.e(
+                                            "ScanViewModel",
+                                            "Device added to checkedDevices: $devicesChecked"
+                                        )
+                                        checkedDevices.add(devicesChecked)
+                                        currentDevice = null
+                                    } else {
+                                        Log.e("ScanViewModel", "Device serial number out of range!")
+                                    }
+                                    currentDevice = null
+                                    connectionToAnotherDevice()
+                                }
+                            })
 
                         }
                     }
-            }
-        }
-
-        @SuppressLint("MissingPermission")
-        fun connectionToAnotherDevice(){
-            if (deviceQueue.isNotEmpty()){
-                currentDevice  = deviceQueue.remove()
-                currentDevice?.let {
-                    bleControlManager.connect(it)
-                        .done { device ->
-                            Log.d("BleControlManager", "Connected to device ${device.name}")
-                            bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
-                            foundDevices.remove(device)
-                            if(unCheckedDevices.contains(device)){
-                                unCheckedDevices.remove(device)
-                            }
-                            deviceQueueProcessed.add(device)
-                        }
-                        .fail{ device, status ->
-                            Log.e("BleControlManager", "Failed to connect to device ${device.name}: $status")
-                            errorMessage = "Failed to connect: $status"
-                            foundDevices.remove(device)
-                            if(!unCheckedDevices.contains(device)){
-                                unCheckedDevices.add(device)
-                            }
-                            // Если подключение не удалось, также начните подключение следующего
-                            currentDevice = null
-                            connectionToAnotherDevice()
-                        }
-                        .enqueue()
                 }
             }
-        }
-        fun clearData() {
-            deviceQueue.clear()
-            foundDevices.clear()
 
-        }
-        companion object{
-            val entireCheckQueue: Queue<EntireCheck> = LinkedList()
+            @SuppressLint("MissingPermission")
+            fun connectionToAnotherDevice() {
+                if (diffRanges!! > counter) {
+                    if (deviceQueue.isNotEmpty()) {
+                        currentDevice = deviceQueue.remove()
+                        currentDevice?.let {
+                            counter++
+                            bleControlManager.connect(it)
+                                .done { device ->
+                                    Log.d("BleControlManager", "Connected to device ${device.name}")
+                                    bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
+                                    foundDevices.remove(device)
+                                    if (unCheckedDevices.contains(device)) {
+                                        unCheckedDevices.remove(device)
+                                    }
+                                    deviceQueueProcessed.add(device)
+                                    if (diffRanges!! > counter) {
+                                        Log.e("Test", "Счетчик больше!!!")
+                                    }
+                                }
+                                .fail { device, status ->
+                                    Log.e(
+                                        "BleControlManager",
+                                        "Failed to connect to device ${device.name}: $status"
+                                    )
+                                    errorMessage = "Failed to connect: $status"
+                                    foundDevices.remove(device)
+                                    if (!unCheckedDevices.contains(device)) {
+                                        unCheckedDevices.add(device)
+                                    }
+                                    if (diffRanges!! > counter) {
+                                        Log.e("Test", "Счетчик больше!!!")
+                                    }
+
+                                    // Если подключение не удалось, также начните подключение следующего
+                                    currentDevice = null
+                                    connectionToAnotherDevice()
+                                }
+                                .enqueue()
+                        }
+                    }
+                } else {
+                    stopScanning()
+                }
+            }
+
+            fun clearData() {
+                deviceQueue.clear()
+                foundDevices.clear()
+                unCheckedDevices.clear()
+                checkedDevices.clear()
+
+            }
+
+            companion object {
+                val entireCheckQueue: Queue<EntireCheck> = LinkedList()
+            }
+
+        override fun onEvent(event: String) {
+            if(event.contains("Modify")){
+                updateReportViewModel()
+            }else if(event.contains("Deleted")){
+                updateReportViewModel()
+            }
         }
     }
+

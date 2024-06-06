@@ -8,18 +8,22 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.ReportItem
+import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.ini4j.Wini
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @Suppress("DEPRECATION")
 @HiltViewModel
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
-    private val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
+    val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
     val addressRange: Flow<Pair<String, String>?> get() = _addressRange
     private var approvedItems: List<ReportItem> = emptyList()
     val toastMessage = MutableStateFlow<String?>(null)
@@ -32,11 +36,15 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private val reportsDirectory = File(bleTesterDirectory, "Reports")
     private val tasksDirectory = File(bleTesterDirectory, "Tasks")
     private lateinit var tasksDirectoryObserver: FileObserver
+    private var callbackFileModifyEvent : FileModifyEvent? = null
 
     init {
 
         createReportsDirectory()
         startObservingTasksDirectory()
+    }
+    fun registerCallback(callbackFileModifyEvent: FileModifyEvent){
+        this.callbackFileModifyEvent = callbackFileModifyEvent
     }
 
     private fun createReportsDirectory() {
@@ -50,12 +58,19 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
     fun updateReportItems(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
+        // Проверяем, изменились ли списки отчетных элементов или нет
         if (reportItems.value != itemsUnchecked || approvedItems != itemsApproved) {
             reportItems.value = itemsUnchecked
             approvedItems = itemsApproved
+
             Log.e("TestReportView", "$reportItems")
             Log.e("TestReportView", "$approvedItems")
-            saveReport("04062024",reportItems.value)
+
+            saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
+        } else {
+            // Если списки не изменились, все равно сохраняем отчет
+            saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
+            Log.i("ReportViewModel", "Списки не изменились, но отчет все равно сохранен")
         }
     }
 
@@ -64,10 +79,16 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         tasksDirectoryObserver = object : FileObserver(tasksDirectory.path, CREATE or DELETE) {
             override fun onEvent(event: Int, path: String?) {
                 if (path != null) {
-                    if (event == CREATE) {
-                        handleNewFile(path)
-                    } else if (event == DELETE) {
-                        handleFileDeleted(path)
+                    when (event) {
+                        CREATE -> {
+                            handleNewFile(path)
+                        }
+                        DELETE -> {
+                            handleFileDeleted(path)
+                        }
+                        MODIFY -> {
+                            handleFIleModify(path)
+                        }
                     }
                 }
             }
@@ -95,10 +116,17 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 checkedFiles.remove(file.name)
                 Log.i("ReportViewModel", "Файл удален: $fileName")
                 counter.value--
+                Log.e("DeletedCheck","$callbackFileModifyEvent")
+                callbackFileModifyEvent?.onEvent("Deleted")
             }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при обработке удаления файла: ${e.message}")
         }
+    }
+
+    private fun handleFIleModify(fileName: String){
+        toastMessage.value = "Произошло изменение в файле, остановка задания и отправка отчета!"
+        callbackFileModifyEvent?.onEvent("Modify")
     }
 
     private fun notifyNewFile(fileName: String) {
@@ -118,12 +146,16 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         Log.i("ReportViewModel", "ViewModel был очищен и все задачи остановлены")
     }
 
-    fun saveReport(fileName: String, reportItems: List<ReportItem>) {
+    fun saveReport(reportItems: List<ReportItem>) {
         try {
             createReportsDirectory()
 
-            val detailedReportFile = File(reportsDirectory, "$fileName.ini")
-            val summaryReportFile = File(reportsDirectory, "${fileName}_summary.ini")
+            val dateFormat = SimpleDateFormat("ddMMyyyy", Locale.getDefault())
+            val currentDate = dateFormat.format(Date())
+
+            val detailedReportFile = File(reportsDirectory, "$currentDate.ini")
+            val summaryReportFile = File(reportsDirectory, "${"report"}_summary.ini")
+
             if (!detailedReportFile.exists()) {
                 detailedReportFile.createNewFile()
             }
@@ -131,22 +163,28 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 summaryReportFile.createNewFile()
             }
 
+            // Проверка, если список reportItems пуст
             if (reportItems.isNotEmpty()) {
                 val detailedData = generateIniData(reportItems)
                 saveIniFile(detailedReportFile.absolutePath, detailedData)
-                val summaryData = generateSummaryData(approvedItems)
+
+                val summaryData = generateSummaryData(reportItems)
                 saveIniFile(summaryReportFile.absolutePath, summaryData)
+
                 Log.i("ReportViewModel", "Отчеты успешно сохранены локально: ${detailedReportFile.absolutePath}, ${summaryReportFile.absolutePath}")
                 toastMessage.value = "Отчеты успешно сохранены локально"
             } else {
-                Log.e("ReportViewModel", "Отчет пустой, данные не сохранены")
-                toastMessage.value = "Отчет пустой, данные не сохранены"
+                Log.e("ReportViewModel", "Отчет пустой, но данные все равно сохранены")
+                toastMessage.value = "Отчет пустой, но данные все равно сохранены"
+                val summaryData = generateSummaryData(reportItems)
+                saveIniFile(summaryReportFile.absolutePath, summaryData)
             }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
             toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
     }
+
 
     private fun saveIniFile(fileName: String, data: Map<String, Map<String, String>>) {
         val file = File(fileName)

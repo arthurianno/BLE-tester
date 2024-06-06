@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -37,13 +36,15 @@ fun AppNavigation(
                     NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any{it.route == navItems.route} == true,
                         onClick = {
-                                  navController.navigate(navItems.route){
-                                      popUpTo(navController.graph.findStartDestination().id){
-                                          saveState = true
-                                      }
-                                      launchSingleTop = true
-                                      restoreState = true
-                                  }
+                            // Если мы уже находимся на этом экране, ничего не делаем
+                            if (navController.currentDestination?.route != navItems.route) {
+                                navController.navigate(navItems.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                }
+                            }
                         },
                         icon = {
                             Icon(
