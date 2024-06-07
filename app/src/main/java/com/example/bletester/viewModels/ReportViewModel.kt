@@ -11,7 +11,6 @@ import com.example.bletester.ReportItem
 import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.ini4j.Wini
 import java.io.File
@@ -24,7 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
     val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
-    val addressRange: Flow<Pair<String, String>?> get() = _addressRange
+    val typeOfDevice = MutableStateFlow<String?>(null)
     private var approvedItems: List<ReportItem> = emptyList()
     val toastMessage = MutableStateFlow<String?>(null)
     var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
@@ -255,7 +254,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         ini.forEach { sectionName, section ->
             var rangeStart: String? = null
             var rangeStop: String? = null
-            val type: String?
+            var type: String? = null
             // Проверить, начинается ли имя секции с "Task"
             if (sectionName.startsWith("Task")) {
                 type = section["Type"]
@@ -266,11 +265,12 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 Log.i("ReportItem", "RangeStart: $rangeStart")
                 Log.i("ReportItem", "RangeStop: $rangeStop")
             }
-            if (rangeStart != null && rangeStop != null) {
+            if (rangeStart != null && rangeStop != null && type != null) {
                 if (_addressRange.value?.first != rangeStart || _addressRange.value?.second != rangeStop) {
                     Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop не совпадают с текущим значением addressRange")
                 }
                 _addressRange.value = Pair(rangeStart, rangeStop)
+                typeOfDevice.value = type
                 Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
             }
         }

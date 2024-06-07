@@ -174,7 +174,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 endRange = newEndRange
                 Log.e("DevicesListScreen", "Changing address 1 and 2")
                 if (startRange != 0L && endRange != 0L) {
-                    scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
+                    //scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
                     scanViewModel.toastMessage.value =  "Начало сканирования"
                 } else {
                     Log.e("DevicesListScreen", "Address is nulls")

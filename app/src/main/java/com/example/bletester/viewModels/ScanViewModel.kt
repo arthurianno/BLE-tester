@@ -1,25 +1,28 @@
     package com.example.bletester.viewModels
 
     import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
-import android.util.Log
-import androidx.compose.runtime.mutableStateListOf
-import androidx.lifecycle.ViewModel
-import com.example.bletester.EntireCheck
-import com.example.bletester.ReportItem
-import com.example.bletester.ble.BleCallbackEvent
-import com.example.bletester.ble.BleControlManager
-import com.example.bletester.ble.FileModifyEvent
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import java.util.LinkedList
-import java.util.Queue
-import javax.inject.Inject
+    import android.bluetooth.BluetoothAdapter
+    import android.bluetooth.BluetoothDevice
+    import android.bluetooth.le.ScanCallback
+    import android.bluetooth.le.ScanFilter
+    import android.bluetooth.le.ScanResult
+    import android.bluetooth.le.ScanSettings
+    import android.util.Log
+    import androidx.compose.runtime.mutableStateListOf
+    import androidx.lifecycle.ViewModel
+    import androidx.lifecycle.viewModelScope
+    import com.example.bletester.EntireCheck
+    import com.example.bletester.ReportItem
+    import com.example.bletester.ble.BleCallbackEvent
+    import com.example.bletester.ble.BleControlManager
+    import com.example.bletester.ble.FileModifyEvent
+    import dagger.hilt.android.lifecycle.HiltViewModel
+    import kotlinx.coroutines.flow.MutableStateFlow
+    import kotlinx.coroutines.flow.combine
+    import kotlinx.coroutines.launch
+    import java.util.LinkedList
+    import java.util.Queue
+    import javax.inject.Inject
 
 
     @Suppress("DEPRECATION")
@@ -42,13 +45,14 @@ import javax.inject.Inject
             private var checkCount = 0L
             private var errorMessage: String? = null
             private var stopRequested = false
-            private var startR : Long? = 0L
-            private var endR : Long? = 0L
+            private var startR : Long = 0L
+            private var endR : Long = 0L
             private var diffRanges : Int? = 0
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
         init {
             reportViewModel.registerCallback(this)
+            observeAddressRange()
             settings = buildSettings()
             filters = buildFilter()
         }
@@ -63,6 +67,42 @@ import javax.inject.Inject
                 ScanFilter.Builder()
                     .build()
             )
+
+        private fun observeAddressRange() {
+            val deviceTypeToLetter = mapOf(
+                "Online" to "D",
+                "Voice" to "E",
+                "ADevice" to "F"
+            )
+
+            viewModelScope.launch {
+                combine(reportViewModel._addressRange, reportViewModel.typeOfDevice) { range, type ->
+                    Pair(range, type)
+                }.collect { (range, type) ->
+                    if (range != null && !type.isNullOrEmpty()) {
+                        val (first, second) = range
+                        Log.e("ScanCheckCollect", "$first and $second, Type: $type")
+
+                        val firstLong = first.toLongOrNull()
+                        val secondLong = second.toLongOrNull()
+
+                        if (firstLong != null && secondLong != null) {
+                            val letter = deviceTypeToLetter[type]
+                            if (letter != null) {
+                                scanLeDevice(letter, firstLong, secondLong)
+                            } else {
+                                Log.e("ScanCheckCollect", "Unknown device type: $type")
+                            }
+                        } else {
+                            Log.e("ScanCheckCollect", "Invalid address range: $first to $second")
+                        }
+                    } else {
+                        Log.e("ScanCheckCollect", "Range or type is null or empty. Range: $range, Type: $type")
+                    }
+                }
+            }
+        }
+
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             clearData()
@@ -185,7 +225,7 @@ import javax.inject.Inject
 
             @SuppressLint("MissingPermission")
             fun connectionToAnotherDevice() {
-                if (diffRanges!! > counter) {
+                if (diffRanges!! != counter) {
                     if (deviceQueue.isNotEmpty()) {
                         currentDevice = deviceQueue.remove()
                         currentDevice?.let {
@@ -199,9 +239,6 @@ import javax.inject.Inject
                                         unCheckedDevices.remove(device)
                                     }
                                     deviceQueueProcessed.add(device)
-                                    if (diffRanges!! > counter) {
-                                        Log.e("Test", "Счетчик больше!!!")
-                                    }
                                 }
                                 .fail { device, status ->
                                     Log.e(
@@ -213,9 +250,7 @@ import javax.inject.Inject
                                     if (!unCheckedDevices.contains(device)) {
                                         unCheckedDevices.add(device)
                                     }
-                                    if (diffRanges!! > counter) {
-                                        Log.e("Test", "Счетчик больше!!!")
-                                    }
+                                    counter--
 
                                     // Если подключение не удалось, также начните подключение следующего
                                     currentDevice = null
