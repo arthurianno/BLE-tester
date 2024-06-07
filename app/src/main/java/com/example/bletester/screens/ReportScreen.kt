@@ -108,6 +108,7 @@ fun ReportScreen(
     val reportViewModel: ReportViewModel = hiltViewModel()
     val reportItems = reportViewModel.reportItems
     val context = LocalContext.current
+    val globalContext = LocalContext.current
     val toastMessage by reportViewModel.toastMessage.collectAsState()
     var fileNameInput by remember { mutableStateOf("") }
     var showDialog by remember { mutableStateOf(false) }
@@ -124,7 +125,7 @@ fun ReportScreen(
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(globalContext, it, Toast.LENGTH_SHORT).show()
             reportViewModel.toastMessage.value = null // Сбросить сообщение после показа
         }
     }

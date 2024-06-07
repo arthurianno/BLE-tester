@@ -106,6 +106,7 @@
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             clearData()
+            toastMessage.value = "Сканирование!"
             startR = start
             endR = end
             diffRanges = (end - start + 1).toInt()
@@ -125,6 +126,7 @@
 
         @SuppressLint("MissingPermission")
         private fun stopScanning() {
+            toastMessage.value = "Остановка сканирования!"
             stopRequested = true
             scanning = false
             bluetoothLeScanner?.stopScan(leScanCallback("", 0, 0))

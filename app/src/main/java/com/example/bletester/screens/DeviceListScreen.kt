@@ -91,6 +91,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     //var startRange by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
+    val globalContext = LocalContext.current.applicationContext
     //var endRange by remember { mutableLongStateOf(0L) }
     val toastMessage by scanViewModel.toastMessage.collectAsState()
     val optionTypeName = listOf(
@@ -152,7 +153,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(globalContext, it, Toast.LENGTH_SHORT).show()
             scanViewModel.toastMessage.value = null // Reset the message after showing it
         }
     }
@@ -175,7 +176,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Log.e("DevicesListScreen", "Changing address 1 and 2")
                 if (startRange != 0L && endRange != 0L) {
                     //scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
-                    scanViewModel.toastMessage.value =  "Начало сканирования"
+                    scanViewModel.toastMessage.value =  "Процесс сканирования"
                 } else {
                     Log.e("DevicesListScreen", "Address is nulls")
                 }

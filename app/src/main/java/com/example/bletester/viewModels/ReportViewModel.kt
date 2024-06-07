@@ -1,5 +1,6 @@
 package com.example.bletester.viewModels
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Environment
 import android.os.FileObserver
@@ -15,11 +16,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.ini4j.Wini
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
 @Suppress("DEPRECATION")
+@SuppressLint("NewApi")
 @HiltViewModel
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
     val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
@@ -164,19 +168,16 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
             // Проверка, если список reportItems пуст
             if (reportItems.isNotEmpty()) {
-                val detailedData = generateIniData(reportItems)
-                saveIniFile(detailedReportFile.absolutePath, detailedData)
-
-                val summaryData = generateSummaryData(reportItems)
-                saveIniFile(summaryReportFile.absolutePath, summaryData)
-
+                saveIniFile(detailedReportFile.absolutePath,reportItems)
+                saveIniFileSummary(summaryReportFile.absolutePath,reportItems)
                 Log.i("ReportViewModel", "Отчеты успешно сохранены локально: ${detailedReportFile.absolutePath}, ${summaryReportFile.absolutePath}")
                 toastMessage.value = "Отчеты успешно сохранены локально"
             } else {
+                saveIniFile(detailedReportFile.absolutePath,reportItems)
+                saveIniFileSummary(summaryReportFile.absolutePath,reportItems)
                 Log.e("ReportViewModel", "Отчет пустой, но данные все равно сохранены")
                 toastMessage.value = "Отчет пустой, но данные все равно сохранены"
-                val summaryData = generateSummaryData(reportItems)
-                saveIniFile(summaryReportFile.absolutePath, summaryData)
+
             }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
@@ -185,54 +186,62 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
 
 
-    private fun saveIniFile(fileName: String, data: Map<String, Map<String, String>>) {
+
+    private fun saveIniFile(fileName: String, dataItemsUnchecked: List<ReportItem>) {
         val file = File(fileName)
-        val ini = Wini(file)
-        data.forEach { (section, properties) ->
-            val sectionObj = ini.add(section)
-            properties.forEach { (key, value) ->
-                sectionObj[key] = value
-            }
-        }
-        ini.store(file)
-    }
+        val ini: Wini
 
-    private fun generateIniData(reportItems: List<ReportItem>): Map<String, Map<String, String>> {
-        Log.e("ReportViewModel", "Number of report items: ${reportItems.size}") // Проверка количества элементов в отчете
-        val data = mutableMapOf<String, MutableMap<String, String>>()
-        val failedDevicesCount = reportItems.count { it.status == "Не прошло проверку" }
-        val headerSection = mutableMapOf(
-            "Диапазон адресов" to "${_addressRange.value?.first} - ${_addressRange.value?.second}",
-            "Устройств не прошедших проверку" to failedDevicesCount.toString()
-        )
-        data["ОТЧЕТ"] = headerSection  // Добавление свойств для раздела "ОТЧЕТ"
-
-        reportItems.forEachIndexed { _, item ->
-            val sectionName = item.device
-            val properties = mutableMapOf(
-                "Device" to item.device,
-                "Device Address" to item.deviceAddress,
-                "Status" to item.status,
-                "Interpretation" to item.interpretation
-            )
-            data[sectionName] = properties
+        // Check if the file already exists
+        if (file.exists()) {
+            ini = Wini(file)
+        } else {
+            ini = Wini()
+            ini.file = file
         }
 
-        return data
+        val failedDevicesCount = dataItemsUnchecked.count { it.status == "Не прошло проверку" }
+
+        // Generate a unique section name based on the current date and time
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+        val reportSectionName = "Отчет $timestamp"
+
+        ini.put(reportSectionName, "RangeStart", _addressRange.value?.first)
+        ini.put(reportSectionName, "RangeStop", _addressRange.value?.second)
+        ini.put(reportSectionName, "Устройств не прошедших проверку", failedDevicesCount)
+
+        dataItemsUnchecked.forEach { item ->
+            ini.put(reportSectionName, "Device", item.device)
+            ini.put(reportSectionName, "Device Address", item.deviceAddress)
+            ini.put(reportSectionName, "Status", item.status)
+            ini.put(reportSectionName, "Interpretation", item.interpretation)
+        }
+
+        ini.store()
     }
+    private fun saveIniFileSummary(fileName: String, dataItemsApproved: List<ReportItem>) {
+        val file = File(fileName)
+        val ini: Wini
 
-    private fun generateSummaryData(itemsApproved: List<ReportItem>): Map<String, Map<String, String>> {
-        val approvedDevicesCount = itemsApproved.count { it.status == "прошло проверку" }
-        val headerSection = mapOf(
-            "Start" to "${_addressRange.value?.first}",
-            "Stop" to "${_addressRange.value?.second}",
-            "Checked devices" to approvedDevicesCount.toString()
-        )
+        // Check if the file already exists
+        if (file.exists()) {
+            ini = Wini(file)
+        } else {
+            ini = Wini()
+            ini.file = file
+        }
 
-        return mapOf("Отчет" to headerSection)
+        val approvedDevicesCount = dataItemsApproved.count { it.status == "прошло проверку" }
+
+        // Generate a unique section name based on the current date and time
+        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+        val reportSectionName = "Отчет $timestamp"
+
+        ini.put(reportSectionName, "RangeStart", _addressRange.value?.first)
+        ini.put(reportSectionName, "RangeStop", _addressRange.value?.second)
+        ini.put(reportSectionName, "Устройств прошедших проверку", approvedDevicesCount)
+
+        ini.store()
     }
-
-
     fun isReportFileExists(fileName: String): Boolean {
         return try {
             val file = File(reportsDirectory, fileName)
@@ -268,10 +277,12 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             if (rangeStart != null && rangeStop != null && type != null) {
                 if (_addressRange.value?.first != rangeStart || _addressRange.value?.second != rangeStop) {
                     Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop не совпадают с текущим значением addressRange")
+                    _addressRange.value = Pair(rangeStart, rangeStop)
+                    typeOfDevice.value = type
+                    Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
+                }else{
+                    Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop  совпадают с текущим значением addressRange обновление не требуется!")
                 }
-                _addressRange.value = Pair(rangeStart, rangeStop)
-                typeOfDevice.value = type
-                Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
             }
         }
     }
