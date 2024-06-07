@@ -261,6 +261,7 @@
                     }
                 } else {
                     stopScanning()
+                    updateReportViewModel()
                 }
             }
 
