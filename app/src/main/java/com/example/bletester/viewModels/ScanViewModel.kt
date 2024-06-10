@@ -50,6 +50,7 @@
             private var diffRanges : Int? = 0
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
+            var bannedDevices = mutableStateListOf<BluetoothDevice>()
         init {
             reportViewModel.registerCallback(this)
             observeAddressRange()
@@ -169,13 +170,15 @@
                     if (deviceName.contains("Satellite")) {
                         val lastFourDigits = deviceName.takeLast(4).toInt()
                         if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
-                            Log.e("ScanViewModel", "device $deviceName")
-                            if (device !in deviceQueue && device !in foundDevices && device !in checkedDevices) {
-                                deviceQueue.add(device)
-                                foundDevices.add(device)
-                                if (currentDevice == null) {
-                                    currentDevice = device
-                                    connectionToAnotherDevice()
+                            if(device.address !in bannedDevices.map { it.address }) {
+                                Log.e("ScanViewModel", "device $deviceName")
+                                if (device !in deviceQueue && device !in foundDevices && device !in checkedDevices) {
+                                    deviceQueue.add(device)
+                                    foundDevices.add(device)
+                                    if (currentDevice == null) {
+                                        currentDevice = device
+                                        connectionToAnotherDevice()
+                                    }
                                 }
                             }
                             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
@@ -210,10 +213,15 @@
                                             "ScanViewModel",
                                             "Device added to checkedDevices: $devicesChecked"
                                         )
+
                                         checkedDevices.add(devicesChecked)
+                                        bleControlManager.sendCommand("ble.off",EntireCheck.default_command);
                                         currentDevice = null
                                     } else {
                                         Log.e("ScanViewModel", "Device serial number out of range!")
+                                        Log.e("ScanViewModel", "Device added to BANNED LIST!")
+                                        bannedDevices.add(device)
+                                        bleControlManager.disconnect().enqueue()
                                     }
                                     currentDevice = null
                                     connectionToAnotherDevice()
@@ -281,8 +289,10 @@
 
         override fun onEvent(event: String) {
             if(event.contains("Modify")){
+                stopScanning()
                 updateReportViewModel()
             }else if(event.contains("Deleted")){
+                stopScanning()
                 updateReportViewModel()
             }
         }

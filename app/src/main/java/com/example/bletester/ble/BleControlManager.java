@@ -110,7 +110,7 @@ public class BleControlManager extends BleManager {
             controlResponse = null;
             disconnect().enqueue();
             BleControlManager.this.close();
-            bleCallbackEvent.onVersionCheck(serialNumber);
+
 
         }
 
@@ -150,8 +150,8 @@ public class BleControlManager extends BleManager {
             //DataItem dataItemHwVer = new DataItem(hwVer, bytesToHex(data), "HW VERSION", false,0x4C,0x10,DataType.CHAR_ARRAY);
             //listOfDataItem.add(dataItemHwVer);
             serialNumber = hwVer;
+            bleCallbackEvent.onVersionCheck(serialNumber);
             Log.d("BleControlManager", "VERSION: " + hwVer);
-            sendCommand("ble.off",EntireCheck.default_command);
         }
 
         @SuppressLint("WrongConstant")
