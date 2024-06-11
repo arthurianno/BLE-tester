@@ -35,6 +35,7 @@ import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -102,6 +103,8 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val counterState by reportViewModel.counter.collectAsState()
     var startRange by rememberSaveable { mutableLongStateOf(0L) }
     var endRange by rememberSaveable { mutableLongStateOf(0L) }
+    var scanningForButton = false
+
 
     DisposableEffect(key1 = lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -161,6 +164,18 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val currentLetter by remember {
         derivedStateOf {
             deviceTypeToLetter[selectedDeviceType] ?: ""
+        }
+    }
+
+    val currentDeviceType by remember {
+        derivedStateOf {
+            // Преобразование типа устройства в соответствующее значение для отчета
+            when (selectedDeviceType) {
+                "SatelliteOnline" -> "Online"
+                "SatelliteVoice" -> "Voice"
+                "AnotherDevice" -> "Another"
+                else -> ""
+            }
         }
     }
 
@@ -340,24 +355,38 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
+                Log.e("Initial Scan State", "scanViewModel.scanning = ${scanViewModel.scanning}")
                 Button(
                     onClick = {
-                        scanViewModel.clearData()
-                        scanViewModel.deviceQueue.clear()
-                        //foundedDevice.clear()
-                        checkedDevice.clear()
-                        scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
-                        showToast(context, "Сканирование начато")
+                        if (scanViewModel.scanning) {
+                            // Логика при остановке сканирования
+                            scanViewModel.stopScanning()
+                            showToast(context, "Сканирование остановлено")
+                        } else {
+                            // Логика при начале сканирования
+                            scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
+                            showToast(context, "Сканирование начато")
+                            reportViewModel._addressRange.value = Pair(startRange.toString(), endRange.toString())
+                            Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")
+                            reportViewModel.typeOfDevice.value = currentDeviceType
+                            Log.e("DevicesListScreen", "this is letter $currentLetter")
+                        }
+                        Log.e("ScanCheck4", "this is scan state ${scanViewModel.scanning}")
+
                     },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF6200EE))
+                    colors = ButtonDefaults.buttonColors(backgroundColor = if (scanViewModel.scanning) Color.Red else Color(0xFF6200EE))
                 ) {
-                    Icon(imageVector = Icons.Filled.Search, contentDescription = "Search Icon", tint = Color.White)
+                    val buttonIcon = if (scanViewModel.scanning) Icons.Filled.Close else Icons.Filled.Search
+                    val buttonLabel = if (scanViewModel.scanning) "STOP" else "SCAN IT!"
+                    Icon(
+                        imageVector = buttonIcon,
+                        contentDescription = if (scanViewModel.scanning) "Stop Icon" else "Search Icon",
+                        tint = Color.White
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("SCAN IT!", color = Color.White)
+                    Text(buttonLabel, color = Color.White)
                 }
+
             }
 
             Surface(

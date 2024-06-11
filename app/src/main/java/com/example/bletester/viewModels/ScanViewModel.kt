@@ -39,7 +39,7 @@
             private val bluetoothLeScanner = adapter?.bluetoothLeScanner
             private val settings: ScanSettings
             private val filters: List<ScanFilter>
-            private var scanning = false
+             var scanning = false
             private val handler = android.os.Handler()
             private val scanPeriod: Long = 10000
             private var checkCount = 0L
@@ -73,7 +73,7 @@
             val deviceTypeToLetter = mapOf(
                 "Online" to "D",
                 "Voice" to "E",
-                "ADevice" to "F"
+                "AnotherDevice" to "F"
             )
 
             viewModelScope.launch {
@@ -90,7 +90,9 @@
                         if (firstLong != null && secondLong != null) {
                             val letter = deviceTypeToLetter[type]
                             if (letter != null) {
+                                if(!scanning){
                                 scanLeDevice(letter, firstLong, secondLong)
+                                    }
                             } else {
                                 Log.e("ScanCheckCollect", "Unknown device type: $type")
                             }
@@ -107,37 +109,36 @@
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             clearData()
+            Log.e("ScanCheck1", "this is scan state $scanning")
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
             diffRanges = (end - start + 1).toInt()
             if (!scanning) {
                 stopRequested = false
-                handler.postDelayed({
-                    scanning = false
-                    bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
-                }, scanPeriod)
                 scanning = true
                 bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
+                Log.e("ScanCheck2", "this is scan state $scanning")
             } else {
                 scanning = false
                 bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
+                Log.e("ScanCheck3", "this is scan state $scanning")
             }
         }
 
         @SuppressLint("MissingPermission")
-        private fun stopScanning() {
+        fun stopScanning() {
             toastMessage.value = "Остановка сканирования!"
             stopRequested = true
-            scanning = false
             bluetoothLeScanner?.stopScan(leScanCallback("", 0, 0))
+            scanning = false
             deviceQueue.clear()
             Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
         }
 
 
         @SuppressLint("MissingPermission")
-        private fun createReportItems(deviceList: List<BluetoothDevice>, status: String): List<ReportItem> {
+         fun createReportItems(deviceList: List<BluetoothDevice>, status: String): List<ReportItem> {
             return deviceList.map { device ->
                 ReportItem(
                     device = device.name ?: "Unknown Device",
@@ -149,7 +150,7 @@
             }
         }
         @SuppressLint("MissingPermission")
-        private fun updateReportViewModel() {
+         fun updateReportViewModel() {
             val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
             val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
             reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)

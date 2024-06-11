@@ -1,6 +1,5 @@
 
 import android.bluetooth.BluetoothAdapter
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -227,9 +226,8 @@ fun ReportScreen(
 
     if (showDialog) {
         SaveFileDialog(
-            onSave = { fileName ->
-                reportViewModel.saveReport(reportItems.value)
-                Log.e("ReportScreen","checking filename : $fileName and value: ${reportItems.value}")
+            onSave = {
+                reportViewModel.saveReport(reportItems.value) // вызов метода сохранения через ViewModel
                 showDialog = false
             },
             onCancel = { showDialog = false }
@@ -283,9 +281,10 @@ fun ReportItemCard(device: String, deviceAddress: String, status: String, interp
 }
 
 @Composable
-fun SaveFileDialog(onSave: (String) -> Unit, onCancel: () -> Unit) {
-    var fileName by remember { mutableStateOf("") }
-
+fun SaveFileDialog(
+    onSave: () -> Unit, // Функция для уведомления о нажатии кнопки "Сохранить"
+    onCancel: () -> Unit
+) {
     Dialog(onDismissRequest = onCancel) {
         Card(
             shape = RoundedCornerShape(8.dp),
@@ -297,8 +296,11 @@ fun SaveFileDialog(onSave: (String) -> Unit, onCancel: () -> Unit) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Введите имя файла для сохранения", fontFamily = FontFamily.Serif, fontSize = 16.sp)
-                TextField(value = fileName, onValueChange = { fileName = it }, label = { Text("Имя файла") })
+                Text(
+                    "Вы уверены, что хотите сохранить данные?",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 16.sp
+                )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -308,12 +310,7 @@ fun SaveFileDialog(onSave: (String) -> Unit, onCancel: () -> Unit) {
                         Text("Отмена")
                     }
                     Button(
-                        onClick = {
-                            if (fileName.isNotBlank()) {
-                                onSave(fileName)
-                            }
-                        },
-                        enabled = fileName.isNotBlank()
+                        onClick = onSave
                     ) {
                         Text("Сохранить")
                     }
