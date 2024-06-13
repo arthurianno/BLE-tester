@@ -121,11 +121,11 @@ import javax.inject.Inject
                 stopRequested = false
                 _scanning.value = true
                 bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck2", "this is scan state $ _scanning.value")
+                Log.e("ScanCheck2", "this is scan state ${_scanning.value}")
             } else {
                 _scanning.value = false
                 bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck3", "this is scan state $ _scanning.value")
+                Log.e("ScanCheck3", "this is scan state ${_scanning.value}")
             }
         }
 
@@ -172,7 +172,6 @@ import javax.inject.Inject
                 super.onScanResult(callbackType, result)
                 if (stopRequested) return
                 val device = result.device
-                //Log.e("","Devices: ${device.name}")
                 val deviceName = device.name ?: return
                 val startLastFour = start.toString().takeLast(4)
                 val endLastFour = end.toString().takeLast(4)
@@ -271,8 +270,6 @@ import javax.inject.Inject
                                         unCheckedDevices.add(device)
                                     }
                                     counter--
-
-                                    // Если подключение не удалось, также начните подключение следующего
                                     currentDevice = null
                                     connectionToAnotherDevice()
                                 }
@@ -285,13 +282,13 @@ import javax.inject.Inject
                 }
             }
 
-            fun clearData() {
+            private fun clearData() {
                 deviceQueue.clear()
                 reportViewModel.reportItems.value = emptyList()
                 foundDevices.clear()
                 unCheckedDevices.clear()
                 checkedDevices.clear()
-
+                bannedDevices.clear()
             }
 
             companion object {
