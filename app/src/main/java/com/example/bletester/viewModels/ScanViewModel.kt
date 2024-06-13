@@ -1,28 +1,29 @@
     package com.example.bletester.viewModels
 
     import android.annotation.SuppressLint
-    import android.bluetooth.BluetoothAdapter
-    import android.bluetooth.BluetoothDevice
-    import android.bluetooth.le.ScanCallback
-    import android.bluetooth.le.ScanFilter
-    import android.bluetooth.le.ScanResult
-    import android.bluetooth.le.ScanSettings
-    import android.util.Log
-    import androidx.compose.runtime.mutableStateListOf
-    import androidx.lifecycle.ViewModel
-    import androidx.lifecycle.viewModelScope
-    import com.example.bletester.EntireCheck
-    import com.example.bletester.ReportItem
-    import com.example.bletester.ble.BleCallbackEvent
-    import com.example.bletester.ble.BleControlManager
-    import com.example.bletester.ble.FileModifyEvent
-    import dagger.hilt.android.lifecycle.HiltViewModel
-    import kotlinx.coroutines.flow.MutableStateFlow
-    import kotlinx.coroutines.flow.combine
-    import kotlinx.coroutines.launch
-    import java.util.LinkedList
-    import java.util.Queue
-    import javax.inject.Inject
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
+import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.bletester.EntireCheck
+import com.example.bletester.ReportItem
+import com.example.bletester.ble.BleCallbackEvent
+import com.example.bletester.ble.BleControlManager
+import com.example.bletester.ble.FileModifyEvent
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import java.util.LinkedList
+import java.util.Queue
+import javax.inject.Inject
 
 
     @Suppress("DEPRECATION")
@@ -39,9 +40,7 @@
             private val bluetoothLeScanner = adapter?.bluetoothLeScanner
             private val settings: ScanSettings
             private val filters: List<ScanFilter>
-             var scanning = false
-            private val handler = android.os.Handler()
-            private val scanPeriod: Long = 10000
+            var _scanning = MutableStateFlow(false)
             private var checkCount = 0L
             private var errorMessage: String? = null
             private var stopRequested = false
@@ -51,6 +50,7 @@
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
             var bannedDevices = mutableStateListOf<BluetoothDevice>()
+            var showBluetoothDialog = mutableStateOf(false)
         init {
             reportViewModel.registerCallback(this)
             observeAddressRange()
@@ -69,6 +69,7 @@
                     .build()
             )
 
+        @SuppressLint("MissingPermission")
         private fun observeAddressRange() {
             val deviceTypeToLetter = mapOf(
                 "Online" to "D",
@@ -90,8 +91,12 @@
                         if (firstLong != null && secondLong != null) {
                             val letter = deviceTypeToLetter[type]
                             if (letter != null) {
-                                if(!scanning){
-                                scanLeDevice(letter, firstLong, secondLong)
+                                if(_scanning.value){
+                                    clearData()
+                                    stopScanning()
+                                    adapter?.disable()
+                                    }else{
+                                    scanLeDevice(letter, firstLong, secondLong)
                                     }
                             } else {
                                 Log.e("ScanCheckCollect", "Unknown device type: $type")
@@ -109,20 +114,20 @@
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             clearData()
-            Log.e("ScanCheck1", "this is scan state $scanning")
+            Log.e("ScanCheck1", "this is scan state $ _scanning.value")
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
             diffRanges = (end - start + 1).toInt()
-            if (!scanning) {
+            if (!_scanning.value) {
                 stopRequested = false
-                scanning = true
+                _scanning.value = true
                 bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck2", "this is scan state $scanning")
+                Log.e("ScanCheck2", "this is scan state $ _scanning.value")
             } else {
-                scanning = false
+                _scanning.value = false
                 bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck3", "this is scan state $scanning")
+                Log.e("ScanCheck3", "this is scan state $ _scanning.value")
             }
         }
 
@@ -131,7 +136,7 @@
             toastMessage.value = "Остановка сканирования!"
             stopRequested = true
             bluetoothLeScanner?.stopScan(leScanCallback("", 0, 0))
-            scanning = false
+            _scanning.value = false
             deviceQueue.clear()
             Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
         }
@@ -150,10 +155,14 @@
             }
         }
         @SuppressLint("MissingPermission")
-         fun updateReportViewModel() {
+         fun updateReportViewModel(command:String) {
             val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
             val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
-            reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
+            if (command.contains("Manual")){
+                reportViewModel.updateReportItemsManual(uncheckedReportItems,approvedReportItems)
+            }else{
+                reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
+            }
             Log.e("ScanViewModel", "${unCheckedDevices.toList()}")
         }
 
@@ -165,10 +174,12 @@
                 super.onScanResult(callbackType, result)
                 if (stopRequested) return
                 val device = result.device
+                //Log.e("","Devices: ${device.name}")
                 val deviceName = device.name ?: return
                 val startLastFour = start.toString().takeLast(4)
                 val endLastFour = end.toString().takeLast(4)
                     if (deviceName.contains("Satellite")) {
+                        //Log.e("","Devices filters : ${device.name}")
                         val lastFourDigits = deviceName.takeLast(4).toInt()
                         if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
                             if(device.address !in bannedDevices.map { it.address }) {
@@ -272,12 +283,13 @@
                     }
                 } else {
                     stopScanning()
-                    updateReportViewModel()
+                    updateReportViewModel("")
                 }
             }
 
             fun clearData() {
                 deviceQueue.clear()
+                reportViewModel.reportItems.value = emptyList()
                 foundDevices.clear()
                 unCheckedDevices.clear()
                 checkedDevices.clear()
@@ -291,10 +303,10 @@
         override fun onEvent(event: String) {
             if(event.contains("Modify")){
                 stopScanning()
-                updateReportViewModel()
+                updateReportViewModel("")
             }else if(event.contains("Deleted")){
                 stopScanning()
-                updateReportViewModel()
+                updateReportViewModel("")
             }
         }
     }

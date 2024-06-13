@@ -28,7 +28,7 @@ import javax.inject.Inject
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
     val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
     val typeOfDevice = MutableStateFlow<String?>(null)
-    private var approvedItems: List<ReportItem> = emptyList()
+    var approvedItems: List<ReportItem> = emptyList()
     val toastMessage = MutableStateFlow<String?>(null)
     var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
     //val addressRange = mutableStateOf<Pair<String, String>?>(null)
@@ -92,6 +92,22 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         } else {
             // Если списки не изменились, все равно сохраняем отчет
             saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
+            Log.i("ReportViewModel", "Списки не изменились, но отчет все равно сохранен")
+        }
+    }
+    fun updateReportItemsManual(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
+        // Проверяем, изменились ли списки отчетных элементов или нет
+        if (reportItems.value != itemsUnchecked || approvedItems != itemsApproved) {
+            reportItems.value = itemsUnchecked
+            approvedItems = itemsApproved
+
+            Log.e("TestReportView", "$reportItems")
+            Log.e("TestReportView", "$approvedItems")
+
+            //saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
+        } else {
+            // Если списки не изменились, все равно сохраняем отчет
+            //saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
             Log.i("ReportViewModel", "Списки не изменились, но отчет все равно сохранен")
         }
     }

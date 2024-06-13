@@ -103,7 +103,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val counterState by reportViewModel.counter.collectAsState()
     var startRange by rememberSaveable { mutableLongStateOf(0L) }
     var endRange by rememberSaveable { mutableLongStateOf(0L) }
-    var scanningForButton = false
 
 
     DisposableEffect(key1 = lifecycleOwner) {
@@ -143,7 +142,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     )
 
     val scope = rememberCoroutineScope()
-
+    val scanning by scanViewModel._scanning.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(scanViewModel.foundDevices, scanViewModel.unCheckedDevices, scanViewModel.checkedDevices) {
@@ -191,7 +190,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Log.e("DevicesListScreen", "Changing address 1 and 2")
                 if (startRange != 0L && endRange != 0L) {
                     //scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
-                    scanViewModel.toastMessage.value =  "Процесс сканирования"
                 } else {
                     Log.e("DevicesListScreen", "Address is nulls")
                 }
@@ -355,32 +353,33 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         }
                     }
                 }
-                Log.e("Initial Scan State", "scanViewModel.scanning = ${scanViewModel.scanning}")
+                Log.e("Initial Scan State", "scanViewModel.scanning = $scanning")
                 Button(
                     onClick = {
-                        if (scanViewModel.scanning) {
+                        if (scanning) {
                             // Логика при остановке сканирования
                             scanViewModel.stopScanning()
                             showToast(context, "Сканирование остановлено")
+                            scanViewModel.updateReportViewModel("Manual")
                         } else {
                             // Логика при начале сканирования
-                            scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
+                            // scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
                             showToast(context, "Сканирование начато")
                             reportViewModel._addressRange.value = Pair(startRange.toString(), endRange.toString())
                             Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")
                             reportViewModel.typeOfDevice.value = currentDeviceType
                             Log.e("DevicesListScreen", "this is letter $currentLetter")
                         }
-                        Log.e("ScanCheck4", "this is scan state ${scanViewModel.scanning}")
+                        Log.e("ScanCheck4", "this is scan state $scanning")
 
                     },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = if (scanViewModel.scanning) Color.Red else Color(0xFF6200EE))
+                    colors = ButtonDefaults.buttonColors(backgroundColor = if (scanning) Color.Red else Color(0xFF6200EE))
                 ) {
-                    val buttonIcon = if (scanViewModel.scanning) Icons.Filled.Close else Icons.Filled.Search
-                    val buttonLabel = if (scanViewModel.scanning) "STOP" else "SCAN IT!"
+                    val buttonIcon = if (scanning) Icons.Filled.Close else Icons.Filled.Search
+                    val buttonLabel = if (scanning) "STOP" else "SCAN IT!"
                     Icon(
                         imageVector = buttonIcon,
-                        contentDescription = if (scanViewModel.scanning) "Stop Icon" else "Search Icon",
+                        contentDescription = if (scanning) "Stop Icon" else "Search Icon",
                         tint = Color.White
                     )
                     Spacer(modifier = Modifier.width(8.dp))
