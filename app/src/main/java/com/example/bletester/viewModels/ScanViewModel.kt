@@ -9,7 +9,6 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bletester.EntireCheck
@@ -50,7 +49,6 @@ import javax.inject.Inject
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
             var bannedDevices = mutableStateListOf<BluetoothDevice>()
-            var showBluetoothDialog = mutableStateOf(false)
         init {
             reportViewModel.registerCallback(this)
             observeAddressRange()
@@ -227,7 +225,7 @@ import javax.inject.Inject
                                         )
 
                                         checkedDevices.add(devicesChecked)
-                                        bleControlManager.sendCommand("ble.off",EntireCheck.default_command);
+                                        bleControlManager.sendCommand("ble.off",EntireCheck.default_command)
                                         currentDevice = null
                                     } else {
                                         Log.e("ScanViewModel", "Device serial number out of range!")
