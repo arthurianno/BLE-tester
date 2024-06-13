@@ -140,6 +140,17 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         "SatelliteVoice" to "E",
         "AnotherDevice" to "F"
     )
+    val progress by remember {
+        derivedStateOf {
+            val totalDevices = endRange - startRange + 1
+            if (totalDevices > 0) {
+                val checkedDevicesCount = checkedDevice.size
+                (checkedDevicesCount.toFloat() / totalDevices.toFloat()).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+        }
+    }
 
     val scope = rememberCoroutineScope()
     val scanning by scanViewModel._scanning.collectAsState()
@@ -258,7 +269,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     }
                 }
             )
-                CustomProgressBar()
+                CustomProgressBar(progress = progress)
 
             Row(
                 Modifier.fillMaxWidth(),

@@ -16,11 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -30,8 +26,7 @@ import com.example.bletester.ui.theme.Purple40
 
 @Preview(showBackground = true)
 @Composable
-fun CustomProgressBar() {
-    var progress by remember { mutableFloatStateOf(0f) }
+fun CustomProgressBar(progress: Float) {
     val size by animateFloatAsState(
         targetValue = progress,
         tween(
@@ -43,19 +38,17 @@ fun CustomProgressBar() {
 
     Column(
         modifier = Modifier
-            .fillMaxWidth() // Use fillMaxWidth instead of fillMaxSize
+            .fillMaxWidth()
             .padding(top = 16.dp, start = 30.dp, end = 30.dp)
     ) {
         // Progress Text
         Row(
             modifier = Modifier
-                .fillMaxWidth(), // Fill the width of the column
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
             Text(text = "${(progress * 100).toInt()}%")
         }
-
-
 
         // Progress Bar
         Box(
@@ -63,7 +56,7 @@ fun CustomProgressBar() {
                 .fillMaxWidth()
                 .height(17.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(Color.Unspecified) // Background color for the progress bar
+                .background(Color.Unspecified)
         ) {
             Box(
                 modifier = Modifier
@@ -74,9 +67,5 @@ fun CustomProgressBar() {
                     .animateContentSize()
             )
         }
-    }
-
-    LaunchedEffect(key1 = true) {
-        progress = 0.7f
     }
 }
