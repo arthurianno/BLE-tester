@@ -40,7 +40,6 @@ import javax.inject.Inject
             private val settings: ScanSettings
             private val filters: List<ScanFilter>
             var _scanning = MutableStateFlow(false)
-            private var checkCount = 0L
             private var errorMessage: String? = null
             private var stopRequested = false
             private var startR : Long = 0L
@@ -49,6 +48,7 @@ import javax.inject.Inject
             private var counter = 0
             var currentDevice: BluetoothDevice? = null
             var bannedDevices = mutableStateListOf<BluetoothDevice>()
+            val progress = MutableStateFlow(0f)
         init {
             reportViewModel.registerCallback(this)
             observeAddressRange()
@@ -193,11 +193,8 @@ import javax.inject.Inject
                             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
 
                                 override fun onHandleCheck() {
-                                    checkCount++
-                                    val totalCount = end - start + 1
-                                    if (totalCount == checkCount) {
-                                        checkCount = 0
-                                    }
+                                    Log.e("onHandleCheck","Callback")
+                                    connectionToAnotherDevice()
                                 }
 
                                 override fun onVersionCheck(version: String) {
@@ -222,7 +219,6 @@ import javax.inject.Inject
                                             "ScanViewModel",
                                             "Device added to checkedDevices: $devicesChecked"
                                         )
-
                                         checkedDevices.add(devicesChecked)
                                         bleControlManager.sendCommand("ble.off",EntireCheck.default_command)
                                         currentDevice = null
@@ -231,9 +227,10 @@ import javax.inject.Inject
                                         Log.e("ScanViewModel", "Device added to BANNED LIST!")
                                         bannedDevices.add(device)
                                         bleControlManager.disconnect().enqueue()
+                                        counter--
+                                        currentDevice = null
+                                        connectionToAnotherDevice()
                                     }
-                                    currentDevice = null
-                                    connectionToAnotherDevice()
                                 }
                             })
 
@@ -245,6 +242,8 @@ import javax.inject.Inject
             @SuppressLint("MissingPermission")
             fun connectionToAnotherDevice() {
                 if (diffRanges!! != counter) {
+                    Log.e("diffRanges","$diffRanges")
+                    Log.e("Counter","$counter")
                     if (deviceQueue.isNotEmpty()) {
                         currentDevice = deviceQueue.remove()
                         currentDevice?.let {
@@ -260,15 +259,13 @@ import javax.inject.Inject
                                     deviceQueueProcessed.add(device)
                                 }
                                 .fail { device, status ->
-                                    Log.e(
-                                        "BleControlManager",
-                                        "Failed to connect to device ${device.name}: $status"
-                                    )
+                                    Log.e("BleControlManager", "Failed to connect to device ${device.name}: $status")
                                     errorMessage = "Failed to connect: $status"
                                     foundDevices.remove(device)
                                     if (!unCheckedDevices.contains(device)) {
                                         unCheckedDevices.add(device)
                                     }
+                                    deviceQueue.addAll(unCheckedDevices)
                                     counter--
                                     currentDevice = null
                                     connectionToAnotherDevice()
@@ -279,6 +276,8 @@ import javax.inject.Inject
                 } else {
                     stopScanning()
                     updateReportViewModel("")
+                    foundDevices.clear()
+                    deviceQueue.clear()
                 }
             }
 
@@ -289,6 +288,7 @@ import javax.inject.Inject
                 unCheckedDevices.clear()
                 checkedDevices.clear()
                 bannedDevices.clear()
+
             }
 
             companion object {

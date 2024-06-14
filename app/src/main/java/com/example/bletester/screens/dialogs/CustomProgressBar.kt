@@ -14,7 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -26,7 +27,7 @@ import com.example.bletester.ui.theme.Purple40
 
 @Preview(showBackground = true)
 @Composable
-fun CustomProgressBar(progress: Float) {
+fun CustomProgressBar(progress: Float,currentCount: Int,totalCount:Int) {
     val size by animateFloatAsState(
         targetValue = progress,
         tween(
@@ -47,7 +48,13 @@ fun CustomProgressBar(progress: Float) {
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(text = "${(progress * 100).toInt()}%")
+            AnimatedCounter(
+                text = "Количество устройств ",
+                count = currentCount,
+                modifier = Modifier.padding(end = 4.dp),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(text = "/$totalCount")
         }
 
         // Progress Bar

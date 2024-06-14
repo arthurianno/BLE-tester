@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 @SuppressLint("UnusedContentLambdaTargetStateParameter")
 @Composable
 fun AnimatedCounter (
+    text:String,
     count: Int,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyMedium
@@ -35,7 +36,7 @@ fun AnimatedCounter (
     }
     Row(modifier = modifier){
         Text(
-            text = "Количество заданий: ",
+            text = text,
             style = style,
             modifier = Modifier.padding(end = 4.dp)
         )

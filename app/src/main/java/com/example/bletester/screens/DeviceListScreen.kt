@@ -47,7 +47,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -65,13 +64,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.bletester.permissions.PermissionUtils
 import com.example.bletester.permissions.SystemBroadcastReceiver
-import com.example.bletester.screens.dialogs.AnimatedCounter
 import com.example.bletester.screens.dialogs.CustomProgressBar
 import com.example.bletester.viewModels.ReportViewModel
 import com.example.bletester.viewModels.ScanViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
 @SuppressLint("MissingPermission", "MutableCollectionMutableState")
@@ -100,7 +97,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         DeviceListOption.CHECKED_DEVICES to "Approved",
         DeviceListOption.UNCHEKED_DEVICES to "UnCheck"
     )
-    val counterState by reportViewModel.counter.collectAsState()
     var startRange by rememberSaveable { mutableLongStateOf(0L) }
     var endRange by rememberSaveable { mutableLongStateOf(0L) }
 
@@ -140,19 +136,12 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         "SatelliteVoice" to "E",
         "AnotherDevice" to "F"
     )
-    val progress by remember {
-        derivedStateOf {
-            val totalDevices = endRange - startRange + 1
-            if (totalDevices > 0) {
-                val checkedDevicesCount = checkedDevice.size
-                (checkedDevicesCount.toFloat() / totalDevices.toFloat()).coerceIn(0f, 1f)
-            } else {
-                0f
-            }
-        }
+    val totalDevices = if (endRange > startRange) {
+        (endRange - startRange + 1).toInt()
+    } else {
+        0
     }
-
-    val scope = rememberCoroutineScope()
+    val progress by scanViewModel.progress.collectAsState()
     val scanning by scanViewModel._scanning.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -261,16 +250,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     }
                 }
             }
-            AnimatedCounter(
-                count = counterState,
-                Modifier.clickable {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Задания: $counterState")
-                    }
-                }
-            )
-                CustomProgressBar(progress = progress)
-
+                CustomProgressBar(progress = progress, currentCount = if (totalDevices > 0) checkedDevice.size else 0, totalCount = totalDevices)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -374,7 +354,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             scanViewModel.updateReportViewModel("Manual")
                         } else {
                             // Логика при начале сканирования
-                            // scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
                             showToast(context, "Сканирование начато")
                             reportViewModel._addressRange.value = Pair(startRange.toString(), endRange.toString())
                             Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")

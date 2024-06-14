@@ -219,6 +219,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
             toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
+        _addressRange.value = Pair("","")
     }
 
 

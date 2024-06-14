@@ -110,8 +110,7 @@ public class BleControlManager extends BleManager {
             controlResponse = null;
             disconnect().enqueue();
             BleControlManager.this.close();
-
-
+            bleCallbackEvent.onHandleCheck();
         }
 
         @SuppressLint("MissingPermission")
@@ -159,11 +158,7 @@ public class BleControlManager extends BleManager {
             String defaultResponse = new String(data, StandardCharsets.UTF_8);
             Log.d("BleControlManager", "updating hwVer " + defaultResponse);
             if(defaultResponse.contains("ble.ok")){
-                if(bleCallbackEvent != null){
-                    disconnect().enqueue();
-                    bleCallbackEvent.onHandleCheck();
-                }
-
+                Log.i("BleControlManager","DEVICES STARTING TO OFF");
             }
 
         }
