@@ -28,8 +28,6 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.ExposedDropdownMenuBox
 import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
-import androidx.compose.material.SnackbarHost
-import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.material.TextFieldDefaults
@@ -143,7 +141,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     }
     val progress by scanViewModel.progress.collectAsState()
     val scanning by scanViewModel._scanning.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(scanViewModel.foundDevices, scanViewModel.unCheckedDevices, scanViewModel.checkedDevices) {
         foundedDevice = scanViewModel.foundDevices
@@ -204,9 +201,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
+    Scaffold { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
