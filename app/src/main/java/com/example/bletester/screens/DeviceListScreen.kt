@@ -69,7 +69,9 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
-@SuppressLint("MissingPermission", "MutableCollectionMutableState")
+@SuppressLint("MissingPermission", "MutableCollectionMutableState",
+    "StateFlowValueCalledInComposition"
+)
 @Composable
 fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val scanViewModel: ScanViewModel = hiltViewModel()
@@ -354,6 +356,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")
                             reportViewModel.typeOfDevice.value = currentDeviceType
                             Log.e("DevicesListScreen", "this is letter $currentLetter")
+                            scanViewModel._scanning.value = true
                         }
                         Log.e("ScanCheck4", "this is scan state $scanning")
 

@@ -28,11 +28,11 @@ import javax.inject.Inject
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
     val _addressRange = MutableStateFlow<Pair<String, String>?>(null)
     val typeOfDevice = MutableStateFlow<String?>(null)
-    var approvedItems: List<ReportItem> = emptyList()
+    private var approvedItems: List<ReportItem> = emptyList()
     val toastMessage = MutableStateFlow<String?>(null)
     var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
     //val addressRange = mutableStateOf<Pair<String, String>?>(null)
-    val counter = MutableStateFlow(0)
+    private val counter = MutableStateFlow(0)
     private val checkedFiles = mutableSetOf<String>()
     private val dcimDirectory: File? = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     private val bleTesterDirectory = File(dcimDirectory, "BLE Tester Directory")
@@ -219,7 +219,6 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
             toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
-        _addressRange.value = Pair("","")
     }
 
 

@@ -112,7 +112,7 @@ import javax.inject.Inject
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
             clearData()
-            Log.e("ScanCheck1", "this is scan state $ _scanning.value")
+            Log.e("ScanCheck1", "this is scan state ${_scanning.value}")
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
@@ -276,8 +276,6 @@ import javax.inject.Inject
                 } else {
                     stopScanning()
                     updateReportViewModel("")
-                    foundDevices.clear()
-                    deviceQueue.clear()
                 }
             }
 
