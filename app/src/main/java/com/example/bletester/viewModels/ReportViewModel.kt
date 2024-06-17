@@ -50,6 +50,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     )
 
 
+
     init {
 
         createReportsDirectory()
@@ -96,19 +97,13 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         }
     }
     fun updateReportItemsManual(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
-        // Проверяем, изменились ли списки отчетных элементов или нет
         if (reportItems.value != itemsUnchecked || approvedItems != itemsApproved) {
             reportItems.value = itemsUnchecked
             approvedItems = itemsApproved
-
             Log.e("TestReportView", "$reportItems")
             Log.e("TestReportView", "$approvedItems")
-
-            //saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
         } else {
-            // Если списки не изменились, все равно сохраняем отчет
-            //saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
-            Log.i("ReportViewModel", "Списки не изменились, но отчет все равно сохранен")
+            Log.i("ReportViewModel", "Обновление устройств не прошедших проверку!")
         }
     }
 
@@ -342,14 +337,11 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 Log.i("ReportItem", "RangeStop: $rangeStop")
             }
             if (rangeStart != null && rangeStop != null && type != null) {
-                if (_addressRange.value?.first != rangeStart || _addressRange.value?.second != rangeStop) {
                     Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop не совпадают с текущим значением addressRange")
                     _addressRange.value = Pair(rangeStart, rangeStop)
                     typeOfDevice.value = type
                     Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
-                }else{
-                    Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop  совпадают с текущим значением addressRange обновление не требуется!")
-                }
+
             }
         }
     }

@@ -39,7 +39,7 @@ import javax.inject.Inject
             private val bluetoothLeScanner = adapter?.bluetoothLeScanner
             private val settings: ScanSettings
             private val filters: List<ScanFilter>
-            var _scanning = MutableStateFlow(false)
+            var scanning = MutableStateFlow(false)
             private var errorMessage: String? = null
             private var stopRequested = false
             private var startR : Long = 0L
@@ -49,6 +49,9 @@ import javax.inject.Inject
             var currentDevice: BluetoothDevice? = null
             var bannedDevices = mutableStateListOf<BluetoothDevice>()
             val progress = MutableStateFlow(0f)
+            private var letter = ""
+            private var isScanning: Boolean = false
+
         init {
             reportViewModel.registerCallback(this)
             observeAddressRange()
@@ -89,13 +92,20 @@ import javax.inject.Inject
                         if (firstLong != null && secondLong != null) {
                             val letter = deviceTypeToLetter[type]
                             if (letter != null) {
-                                if(_scanning.value){
-                                    clearData()
-                                    stopScanning()
-                                    adapter?.disable()
-                                    }else{
-                                    scanLeDevice(letter, firstLong, secondLong)
+                                if (!isScanning) {
+                                    isScanning = true
+                                    counter = 0
+                                    checkedDevices.clear()
+                                    if (scanning.value) {
+                                        clearData()
+                                        stopScanning()
+                                        adapter?.disable()
+                                    } else {
+                                        scanLeDevice(letter, firstLong, secondLong)
                                     }
+                                } else {
+                                    Log.e("ScanCheckCollect", "Already scanning. Skipping re-scan.")
+                                }
                             } else {
                                 Log.e("ScanCheckCollect", "Unknown device type: $type")
                             }
@@ -109,33 +119,39 @@ import javax.inject.Inject
             }
         }
 
+
+
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
-            clearData()
-            Log.e("ScanCheck1", "this is scan state ${_scanning.value}")
+            reportViewModel._addressRange.value = Pair(start.toString(), end.toString())
+            Log.e("DevicesListScreen", "this is range ${Pair(start, end)}")
+            reportViewModel.typeOfDevice.value = letter
+            Log.e("DevicesListScreen", "this is letter $letter")
+            foundDevices.clear()
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
             diffRanges = (end - start + 1).toInt()
-            if (!_scanning.value) {
+            if (!scanning.value) {
                 stopRequested = false
-                _scanning.value = true
+                scanning.value = true
                 bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck2", "this is scan state ${_scanning.value}")
+                Log.i("SCAN", "SCANNING")
             } else {
-                _scanning.value = false
-                bluetoothLeScanner?.stopScan(leScanCallback(letter, start, end))
-                Log.e("ScanCheck3", "this is scan state ${_scanning.value}")
+                Log.e("ScanCheckLog","VALUE OF SCAN ${scanning.value}")
             }
         }
 
         @SuppressLint("MissingPermission")
         fun stopScanning() {
             toastMessage.value = "Остановка сканирования!"
+            isScanning = false
             stopRequested = true
-            bluetoothLeScanner?.stopScan(leScanCallback("", 0, 0))
-            _scanning.value = false
+            scanning.value = false
+            bluetoothLeScanner?.stopScan(leScanCallback(letter, startR, endR))
+            Log.i("SCAN", " STOP SCANNING")
             deviceQueue.clear()
+            foundDevices.clear()
             Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
         }
 
@@ -181,14 +197,18 @@ import javax.inject.Inject
                         if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
                             if(device.address !in bannedDevices.map { it.address }) {
                                 Log.e("ScanViewModel", "device $deviceName")
-                                if (device !in deviceQueue && device !in foundDevices && device !in checkedDevices) {
+                                if (device.address !in deviceQueue.map { it.address } && device.address !in foundDevices.map { it.address } && device.address !in checkedDevices.map { it.address }) {
                                     deviceQueue.add(device)
                                     foundDevices.add(device)
                                     if (currentDevice == null) {
                                         currentDevice = device
                                         connectionToAnotherDevice()
                                     }
+                                }else{
+                                    Log.e("Filters  in massivs","Devices : $device in massivs type!")
                                 }
+                            }else{
+                                Log.e("Filters banned","Devices : $device in banned type!")
                             }
                             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
 
@@ -246,6 +266,7 @@ import javax.inject.Inject
                     Log.e("diffRanges","$diffRanges")
                     Log.e("Counter","$counter")
                     if (deviceQueue.isNotEmpty()) {
+                        Log.e("BleQueue","$deviceQueue")
                        var currentDevice = deviceQueue.remove()
                         if (currentDevice.address !in bannedDevices.map { it.address }) {
                             currentDevice?.let {
@@ -291,6 +312,7 @@ import javax.inject.Inject
                     }
                 } else {
                     stopScanning()
+                    foundDevices.clear()
                     updateReportViewModel("")
                 }
             }
