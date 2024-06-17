@@ -193,8 +193,8 @@ import javax.inject.Inject
                             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
 
                                 override fun onHandleCheck() {
-                                    Log.e("onHandleCheck","Callback")
                                     connectionToAnotherDevice()
+                                    Log.e("onHandleCheck"," connectionToAnotherDev after Callback")
                                 }
 
                                 override fun onVersionCheck(version: String) {
@@ -228,6 +228,7 @@ import javax.inject.Inject
                                         bannedDevices.add(device)
                                         bleControlManager.disconnect().enqueue()
                                         counter--
+                                        Log.e("Counter","$counter after adding from banned")
                                         currentDevice = null
                                         connectionToAnotherDevice()
                                     }
@@ -245,33 +246,48 @@ import javax.inject.Inject
                     Log.e("diffRanges","$diffRanges")
                     Log.e("Counter","$counter")
                     if (deviceQueue.isNotEmpty()) {
-                        currentDevice = deviceQueue.remove()
-                        currentDevice?.let {
-                            counter++
-                            bleControlManager.connect(it)
-                                .done { device ->
-                                    Log.d("BleControlManager", "Connected to device ${device.name}")
-                                    bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
-                                    foundDevices.remove(device)
-                                    if (unCheckedDevices.contains(device)) {
-                                        unCheckedDevices.remove(device)
+                       var currentDevice = deviceQueue.remove()
+                        if (currentDevice.address !in bannedDevices.map { it.address }) {
+                            currentDevice?.let {
+                                counter++
+                                bleControlManager.connect(it)
+                                    .done { device ->
+                                        Log.d(
+                                            "BleControlManager",
+                                            "Connected to device ${device.name}"
+                                        )
+                                        bleControlManager.sendPinCommand(
+                                            "master",
+                                            EntireCheck.PIN_C0DE
+                                        )
+                                        foundDevices.remove(device)
+                                        if (unCheckedDevices.contains(device)) {
+                                            unCheckedDevices.remove(device)
+                                        }
+                                        deviceQueueProcessed.add(device)
                                     }
-                                    deviceQueueProcessed.add(device)
-                                }
-                                .fail { device, status ->
-                                    Log.e("BleControlManager", "Failed to connect to device ${device.name}: $status")
-                                    errorMessage = "Failed to connect: $status"
-                                    foundDevices.remove(device)
-                                    if (!unCheckedDevices.contains(device)) {
-                                        unCheckedDevices.add(device)
+                                    .fail { device, status ->
+                                        Log.e(
+                                            "BleControlManager",
+                                            "Failed to connect to device ${device.name}: $status"
+                                        )
+                                        errorMessage = "Failed to connect: $status"
+                                        foundDevices.remove(device)
+                                        if (!unCheckedDevices.contains(device)) {
+                                            unCheckedDevices.add(device)
+                                        }
+                                        deviceQueue.addAll(unCheckedDevices)
+                                        counter--
+                                        Log.e("Counter", "$counter after mining")
+                                        currentDevice = null
+                                        connectionToAnotherDevice()
                                     }
-                                    deviceQueue.addAll(unCheckedDevices)
-                                    counter--
-                                    currentDevice = null
-                                    connectionToAnotherDevice()
-                                }
-                                .enqueue()
+                                    .enqueue()
+                            }
+                        }else{
+                            connectionToAnotherDevice()
                         }
+
                     }
                 } else {
                     stopScanning()

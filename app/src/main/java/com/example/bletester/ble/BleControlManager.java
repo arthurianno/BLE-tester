@@ -6,6 +6,8 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -109,7 +111,6 @@ public class BleControlManager extends BleManager {
             controlRequest = null;
             controlResponse = null;
             disconnect().enqueue();
-            BleControlManager.this.close();
             bleCallbackEvent.onHandleCheck();
         }
 
