@@ -136,6 +136,8 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 checkedFiles.add(file.name)
                 notifyNewFile(file.name)
                 counter.value++
+                Log.e("DeletedCheck","$callbackFileModifyEvent")
+                callbackFileModifyEvent?.onEvent("Auto")
             }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при обработке нового файла: ${e.message}")

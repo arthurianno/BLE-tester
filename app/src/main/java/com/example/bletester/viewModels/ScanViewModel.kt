@@ -10,7 +10,6 @@ import android.bluetooth.le.ScanSettings
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.bletester.EntireCheck
 import com.example.bletester.ReportItem
 import com.example.bletester.ble.BleCallbackEvent
@@ -18,8 +17,6 @@ import com.example.bletester.ble.BleControlManager
 import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 import java.util.LinkedList
 import java.util.Queue
 import javax.inject.Inject
@@ -51,10 +48,20 @@ import javax.inject.Inject
             val progress = MutableStateFlow(0f)
             private var letter = ""
             private var isScanning: Boolean = false
+        private val deviceTypeToLetter = mapOf(
+            "Online" to "D",
+            "Voice" to "E",
+            "AnotherDevice" to "F"
+        )
+        private val deviceTypeToLetterToReport = mapOf(
+            "D" to "Online",
+            "E" to "Voice",
+            "F" to "AnotherDevices"
+        )
 
         init {
             reportViewModel.registerCallback(this)
-            observeAddressRange()
+            //observeAddressRange()
             settings = buildSettings()
             filters = buildFilter()
         }
@@ -70,62 +77,16 @@ import javax.inject.Inject
                     .build()
             )
 
-        @SuppressLint("MissingPermission")
-        private fun observeAddressRange() {
-            val deviceTypeToLetter = mapOf(
-                "Online" to "D",
-                "Voice" to "E",
-                "AnotherDevice" to "F"
-            )
 
-            viewModelScope.launch {
-                combine(reportViewModel._addressRange, reportViewModel.typeOfDevice) { range, type ->
-                    Pair(range, type)
-                }.collect { (range, type) ->
-                    if (range != null && !type.isNullOrEmpty()) {
-                        val (first, second) = range
-                        Log.e("ScanCheckCollect", "$first and $second, Type: $type")
-
-                        val firstLong = first.toLongOrNull()
-                        val secondLong = second.toLongOrNull()
-
-                        if (firstLong != null && secondLong != null) {
-                            val letter = deviceTypeToLetter[type]
-                            if (letter != null) {
-                                if (!isScanning) {
-                                    isScanning = true
-                                    counter = 0
-                                    checkedDevices.clear()
-                                    if (scanning.value) {
-                                        clearData()
-                                        stopScanning()
-                                        adapter?.disable()
-                                    } else {
-                                        scanLeDevice(letter, firstLong, secondLong)
-                                    }
-                                } else {
-                                    Log.e("ScanCheckCollect", "Already scanning. Skipping re-scan.")
-                                }
-                            } else {
-                                Log.e("ScanCheckCollect", "Unknown device type: $type")
-                            }
-                        } else {
-                            Log.e("ScanCheckCollect", "Invalid address range: $first to $second")
-                        }
-                    } else {
-                        Log.e("ScanCheckCollect", "Range or type is null or empty. Range: $range, Type: $type")
-                    }
-                }
-            }
-        }
 
 
 
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
+            val typeOfLetter = deviceTypeToLetterToReport[letter]
             reportViewModel._addressRange.value = Pair(start.toString(), end.toString())
             Log.e("DevicesListScreen", "this is range ${Pair(start, end)}")
-            reportViewModel.typeOfDevice.value = letter
+            reportViewModel.typeOfDevice.value = typeOfLetter
             Log.e("DevicesListScreen", "this is letter $letter")
             foundDevices.clear()
             toastMessage.value = "Сканирование!"
@@ -294,10 +255,14 @@ import javax.inject.Inject
                                         )
                                         errorMessage = "Failed to connect: $status"
                                         foundDevices.remove(device)
-                                        if (!unCheckedDevices.contains(device)) {
+                                        if (!unCheckedDevices.contains(device) && !stopRequested) {
                                             unCheckedDevices.add(device)
+                                            deviceQueue.addAll(unCheckedDevices)
+                                        }else{
+                                            Log.i("ScanViewModel","Остановка подключения!")
+                                            deviceQueue.clear()
                                         }
-                                        deviceQueue.addAll(unCheckedDevices)
+
                                         counter--
                                         Log.e("Counter", "$counter after mining")
                                         currentDevice = null
@@ -331,13 +296,26 @@ import javax.inject.Inject
                 val entireCheckQueue: Queue<EntireCheck> = LinkedList()
             }
 
+
         override fun onEvent(event: String) {
             if(event.contains("Modify")){
                 stopScanning()
                 updateReportViewModel("")
             }else if(event.contains("Deleted")){
                 stopScanning()
+                deviceQueue.clear()
                 updateReportViewModel("")
+            }else if (event.contains("Auto")){
+                letter = deviceTypeToLetter[reportViewModel.typeOfDevice.value.toString()].toString()
+                reportViewModel._addressRange.value?.first?.toLong()?.let {
+                    reportViewModel._addressRange.value?.second?.toLong()?.let { it1 ->
+                        scanLeDevice(
+                            letter,
+                            it,
+                            it1
+                        )
+                    }
+                }
             }
         }
     }
