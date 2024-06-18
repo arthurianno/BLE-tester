@@ -341,6 +341,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Button(
                     onClick = {
                         if (scanning) {
+                            Log.e("Click","scanning updt $scanning")
                             // Логика при остановке сканирования
                             scanViewModel.stopScanning()
                             scanViewModel.updateReportViewModel("Manual")
