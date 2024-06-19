@@ -169,9 +169,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         derivedStateOf {
             // Преобразование типа устройства в соответствующее значение для отчета
             when (selectedDeviceType) {
-                "SatelliteOnline" -> "Online"
-                "SatelliteVoice" -> "Voice"
-                "AnotherDevice" -> "Another"
+                "SatelliteOnline" -> "D"
+                "SatelliteVoice" -> "F"
+                "AnotherDevice" -> "E"
                 else -> ""
             }
         }
@@ -348,6 +348,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         } else {
                             // Логика при начале сканирования
                             scanViewModel.scanLeDevice(currentDeviceType,startRange,endRange)
+                            Log.e("ScanList","type of dev $currentDeviceType")
                             //reportViewModel._addressRange.value = Pair(startRange.toString(), endRange.toString())
                             //Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")
                            // reportViewModel.typeOfDevice.value = currentDeviceType

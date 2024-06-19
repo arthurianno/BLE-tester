@@ -44,4 +44,10 @@ object AppModule {
     ): ScanViewModel {
         return ScanViewModel(bleControlManager, reportViewModel)
     }
+
+    @Provides
+    @Singleton
+    fun provideLogger(): Logger {
+        return Logger
+    }
 }

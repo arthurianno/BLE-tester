@@ -11,7 +11,8 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.EntireCheck
-import com.example.bletester.ReportItem
+    import com.example.bletester.Logger
+    import com.example.bletester.ReportItem
 import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.ble.FileModifyEvent
@@ -81,13 +82,14 @@ import javax.inject.Inject
 
 
 
+
         @SuppressLint("MissingPermission")
         fun scanLeDevice(letter: String, start: Long, end: Long) {
-            val typeOfLetter = deviceTypeToLetterToReport[letter]
+            val typeOfLetterForReport = deviceTypeToLetterToReport[letter]
             reportViewModel._addressRange.value = Pair(start.toString(), end.toString())
             Log.e("DevicesListScreen", "this is range ${Pair(start, end)}")
-            reportViewModel.typeOfDevice.value = typeOfLetter
-            Log.e("DevicesListScreen", "this is letter $letter")
+            reportViewModel.typeOfDevice.value = typeOfLetterForReport
+            Log.e("DevicesListScreen", "this is letter to report $typeOfLetterForReport")
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
@@ -105,6 +107,7 @@ import javax.inject.Inject
                 scanning.value = true
                 bluetoothLeScanner?.startScan(leScanCallback(letter, start, end))
                 Log.i("SCAN", "SCANNING")
+                Logger.i("ScanViewModel","SCANNING")
             } else {
                 Log.e("ScanCheckLog","VALUE OF SCAN ${scanning.value}")
             }
@@ -119,7 +122,6 @@ import javax.inject.Inject
             isScanning = false
             stopRequested = true
             scanning.value = false
-            bluetoothLeScanner?.stopScan(leScanCallback(letter, startR, endR))
             Log.i("SCAN", " STOP SCANNING")
             foundDevices.clear()
             deviceQueue.clear()
@@ -148,7 +150,8 @@ import javax.inject.Inject
             }else{
                 reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
             }
-            Log.e("ScanViewModel", "${unCheckedDevices.toList()}")
+            Log.i("ScanViewModel", "${unCheckedDevices.toList()}")
+
         }
 
 
@@ -239,10 +242,10 @@ import javax.inject.Inject
                         Log.e("BleQueue","$deviceQueue")
                        var currentDevice = deviceQueue.remove()
                         if (currentDevice.address !in bannedDevices.map { it.address }) {
+                            counter++
                             currentDevice?.let {
                                 bleControlManager.connect(it)
                                     .done { device ->
-                                        counter++
                                         Log.d(
                                             "BleControlManager",
                                             "Connected to device ${device.name}"
