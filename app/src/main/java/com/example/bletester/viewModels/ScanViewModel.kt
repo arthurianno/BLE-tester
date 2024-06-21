@@ -14,8 +14,8 @@ import com.example.bletester.EntireCheck
     import com.example.bletester.Logger
     import com.example.bletester.ReportItem
 import com.example.bletester.ble.BleCallbackEvent
-import com.example.bletester.ble.BleControlManager
-import com.example.bletester.ble.FileModifyEvent
+    import com.example.bletester.ble.BleControlManager
+    import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.LinkedList
@@ -26,7 +26,7 @@ import javax.inject.Inject
     @Suppress("DEPRECATION")
     @HiltViewModel
     @SuppressLint("StaticFieldLeak")
-        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager,private val reportViewModel: ReportViewModel) : ViewModel(),FileModifyEvent {
+        class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager, private val reportViewModel: ReportViewModel) : ViewModel(),FileModifyEvent {
             val toastMessage = MutableStateFlow<String?>(null)
             var deviceQueue: Queue<BluetoothDevice> = LinkedList()
             var deviceQueueProcessed: Queue<BluetoothDevice> = LinkedList()
@@ -116,7 +116,7 @@ import javax.inject.Inject
         @SuppressLint("MissingPermission")
         fun stopScanning() {
             if(deviceQueueProcessed.isNotEmpty()){
-                bleControlManager.disconnect()
+                bleControlManager.disconnect().enqueue()
             }
             toastMessage.value = "Остановка сканирования!"
             isScanning = false
@@ -125,6 +125,7 @@ import javax.inject.Inject
             Log.i("SCAN", " STOP SCANNING")
             foundDevices.clear()
             deviceQueue.clear()
+            deviceQueueProcessed.clear()
             Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
         }
 
@@ -141,17 +142,19 @@ import javax.inject.Inject
                 )
             }
         }
-        @SuppressLint("MissingPermission")
-         fun updateReportViewModel(command:String) {
-            val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
-            val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
-            if (command.contains("Manual")){
-                reportViewModel.updateReportItemsManual(uncheckedReportItems,approvedReportItems)
-            }else{
-                reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
+        fun updateReportViewModel(command: String) {
+            if (!scanning.value) {
+                val uncheckedReportItems = createReportItems(unCheckedDevices.distinct(), "Unchecked")
+                val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
+                if (command.contains("Manual")) {
+                    reportViewModel.updateReportItemsManual(uncheckedReportItems, approvedReportItems)
+                } else {
+                    reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
+                }
+                Log.i("ScanViewModel", "${unCheckedDevices.toList()}")
+            } else {
+                Log.i("ScanViewModel", "Сканирование все еще идет, отчет не обновляется")
             }
-            Log.i("ScanViewModel", "${unCheckedDevices.toList()}")
-
         }
 
 

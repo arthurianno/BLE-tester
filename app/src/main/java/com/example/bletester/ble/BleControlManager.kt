@@ -1,181 +1,135 @@
-package com.example.bletester.ble;
+package com.example.bletester.ble
 
-import android.annotation.SuppressLint;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
-import android.content.Context;
-import android.os.Build;
-import android.util.Log;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCharacteristic
+import android.content.Context
+import android.util.Log
+import com.example.bletester.EntireCheck
+import com.example.bletester.viewModels.ScanViewModel
+import no.nordicsemi.android.ble.BleManager
+import no.nordicsemi.android.ble.data.Data
+import java.util.UUID
 
-import com.example.bletester.EntireCheck;
+class BleControlManager(context: Context) : BleManager(context) {
 
-import com.example.bletester.viewModels.ScanViewModel;
+    private var serialNumber: String = ""
+    private var bleCallbackEvent: BleCallbackEvent? = null
 
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.UUID;
+    private var controlRequest: BluetoothGattCharacteristic? = null
+    private var controlResponse: BluetoothGattCharacteristic? = null
 
-import no.nordicsemi.android.ble.BleManager;
-import no.nordicsemi.android.ble.callback.DataReceivedCallback;
-
-public class BleControlManager extends BleManager {
-
-    private static final UUID UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
-    private static final UUID UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E");
-    private static final UUID UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E");
-    public String serialNumber = "";
-
-    private static BluetoothGattCharacteristic controlRequest;
-    private BluetoothGattCharacteristic controlResponse;
-    public BleControlManager(@NonNull Context context) {
-        super(context);
-    }
-    BleCallbackEvent bleCallbackEvent;
-
-    public void setBleCallbackEvent(BleCallbackEvent bleCallbackEvent) {
-        this.bleCallbackEvent = bleCallbackEvent;
-    }
-    @NonNull
-    @Override
-    protected BleManagerGattCallback getGattCallback() {
-        return new BleControlManagerGattCallBacks();
+    fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent) {
+        this.bleCallbackEvent = bleCallbackEvent
     }
 
+    override fun log(priority: Int, message: String) {
+        Log.println(priority, "BleControlManager", message)
+    }
 
-    public void sendCommand(String command, EntireCheck entireCheck) {
-        if (isConnected() && controlRequest != null) {
-            BluetoothGattCharacteristic characteristic = controlRequest;
-            ScanViewModel.Companion.getEntireCheckQueue().add(entireCheck);
-            if (characteristic != null) {
-                byte[] data = command.getBytes();
-                writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-                        .done(device -> {
-                            Log.e("BleControlManager", "Command sent: " + command);
-                        })
-                        .fail((device, status) -> Log.e("BleControlManager", "Failed to send command: " + status))
-                        .enqueue();
-            } else {
-                Log.e("BleControlManager", "Control Request characteristic is null");
+    override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
+        gatt.getService(UART_SERVICE_UUID)?.let { service ->
+                controlRequest = service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID)
+            controlResponse = service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID)
+        }
+        return controlRequest != null && controlResponse != null
+    }
+
+    override fun initialize() {
+        super.initialize()
+        setNotificationCallback(controlResponse).with { _: BluetoothDevice, data: Data ->
+                handleResponseData(data.value)
+        }
+        enableNotifications(controlResponse).enqueue()
+    }
+
+    override fun onServicesInvalidated() {
+        controlRequest = null
+        controlResponse = null
+        disconnect().enqueue()
+        bleCallbackEvent?.onHandleCheck()
+
+    }
+
+    fun sendCommand(command: String, entireCheck: EntireCheck) {
+        if (isConnected && controlRequest != null) {
+            ScanViewModel.entireCheckQueue.add(entireCheck)
+            writeCharacteristic(controlRequest, command.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                    .done {
+                log(Log.INFO, "Command sent: $command")
             }
+                .fail { _, status ->
+                    log(Log.ERROR, "Failed to send command: $status")
+            }
+                .enqueue()
         } else {
-            Log.e("BleControlManager", "Device is not connected");
-        }
-    }
-    public void sendPinCommand(String pinCode, EntireCheck entireCheck) {
-        if (isConnected() && controlRequest != null) {
-            BluetoothGattCharacteristic characteristic = controlRequest;
-            ScanViewModel.Companion.getEntireCheckQueue().add(entireCheck);
-            if (characteristic != null) {
-                // Добавляем префикс "pin." к пин-коду
-                String formattedPinCode = "pin." + pinCode;
-                byte[] data = formattedPinCode.getBytes();
-                writeCharacteristic(characteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-                        .done(device -> {
-                           Log.e("BleControlManager", "PIN command sent");
-                        })
-                        .fail((device, status) -> {
-                            Log.e("BleControlManager", "PIN command incorrect");
-                        })
-                        .enqueue();
-            }
+            log(Log.ERROR, "Device is not connected")
         }
     }
 
-    class BleControlManagerGattCallBacks extends BleManagerGattCallback {
-
-        @Override
-        protected boolean isRequiredServiceSupported(@NonNull BluetoothGatt gatt) {
-            BluetoothGattService controlService = gatt.getService(UART_SERVICE_UUID);
-            if (controlService != null) {
-                controlRequest = controlService.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
-                controlResponse = controlService.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+    fun sendPinCommand(pinCode: String, entireCheck: EntireCheck) {
+        if (isConnected && controlRequest != null) {
+            ScanViewModel.entireCheckQueue.add(entireCheck)
+            val formattedPinCode = "pin.$pinCode"
+            writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                    .done {
+                log(Log.INFO, "PIN command sent")
             }
-            return controlRequest != null && controlResponse != null;
-        }
-
-        @Override
-        protected void onDeviceReady() {
-            super.onDeviceReady();
-            setNotificationCallback(controlResponse).with(notificationCallback);
-            enableNotifications(controlResponse).enqueue();
-        }
-
-        @Override
-        protected void onServicesInvalidated() {
-            controlRequest = null;
-            controlResponse = null;
-            disconnect().enqueue();
-            bleCallbackEvent.onHandleCheck();
-        }
-
-        @SuppressLint("MissingPermission")
-        private final DataReceivedCallback notificationCallback = (device, data) -> {
-            // Обработка данных, полученных от controlResponse
-            // data - это массив байтов, которые представляют ответ от устройства
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                handleResponseData(data.getValue());
+                .fail { _, _ ->
+                    log(Log.ERROR, "PIN command incorrect")
             }
-        };
-
-        @RequiresApi(api = Build.VERSION_CODES.O)
-        private void handleResponseData(byte[] data) {
-            EntireCheck entireCheck1 = ScanViewModel.Companion.getEntireCheckQueue().poll();
-            if (entireCheck1 == null) {
-                Log.d("BleControlManager", "Entire is null");
-                return;
-            }
-            switch (entireCheck1){
-                case HW_VER:
-                    Log.d("BleControlManager","data " + Arrays.toString(data));
-                    handleHwVer(data);
-                    break;
-                case default_command:
-                    Log.d("BleControlManager","data " + Arrays.toString(data));
-                    handleDefaultCommand(data);
-                    break;
-                case PIN_C0DE:
-                    Log.d("BleControlManager","data " + Arrays.toString(data));
-                    handlePinCodeResult(data);
-
-            }
-        }
-        private void handleHwVer(byte[] data) {
-            String hwVer = new String(Arrays.copyOfRange(data, 4, 20), StandardCharsets.US_ASCII).trim().replaceAll("[\\x00-\\x1F]", "");
-            //DataItem dataItemHwVer = new DataItem(hwVer, bytesToHex(data), "HW VERSION", false,0x4C,0x10,DataType.CHAR_ARRAY);
-            //listOfDataItem.add(dataItemHwVer);
-            serialNumber = hwVer;
-            bleCallbackEvent.onVersionCheck(serialNumber);
-            Log.d("BleControlManager", "VERSION: " + hwVer);
-        }
-
-        @SuppressLint("WrongConstant")
-        private void handleDefaultCommand(byte[] data) {
-            String defaultResponse = new String(data, StandardCharsets.UTF_8);
-            Log.d("BleControlManager", "updating hwVer " + defaultResponse);
-            if(defaultResponse.contains("ble.ok")){
-                Log.i("BleControlManager","DEVICES STARTING TO OFF");
-            }
-
-        }
-        private void handlePinCodeResult(byte[] data){
-            String pinResponse = new String(data, StandardCharsets.UTF_8);
-            if(pinResponse.contains("pin.ok")){
-                Log.d("BleControlManager", "Pin code is correct");
-                sendCommand("serial", EntireCheck.HW_VER);
-            }
+                .enqueue()
         }
     }
 
+    private fun handleResponseData(data: ByteArray?) {
+        val entireCheck = ScanViewModel.entireCheckQueue.poll() ?: run {
+            log(Log.DEBUG, "Entire is null")
+            return
+        }
+
+        when (entireCheck) {
+            EntireCheck.HW_VER -> handleHwVer(data)
+            EntireCheck.default_command -> handleDefaultCommand(data)
+            EntireCheck.PIN_C0DE -> handlePinCodeResult(data)
+        }
+    }
+
+    private fun handleHwVer(data: ByteArray?) {
+        if (data == null || data.size < 4) {
+            log(Log.ERROR, "Received invalid HW version data")
+            return
+        }
+
+        val endIndex = minOf(20, data.size)
+        val hwVer = String(data.copyOfRange(4, endIndex)).trim().replace("[\\x00-\\x1F]".toRegex(), "")
+        serialNumber = hwVer
+        bleCallbackEvent?.onVersionCheck(serialNumber)
+        log(Log.DEBUG, "VERSION: $hwVer")
+    }
+
+    @SuppressLint("SuspiciousIndentation")
+    private fun handleDefaultCommand(data: ByteArray?) {
+        val defaultResponse = data?.toString(Charsets.UTF_8) ?: return
+                log(Log.DEBUG, "updating hwVer $defaultResponse")
+        if (defaultResponse.contains("ble.ok")) {
+            log(Log.INFO, "DEVICES STARTING TO OFF")
+        }
+    }
+
+    private fun handlePinCodeResult(data: ByteArray?) {
+        val pinResponse = data?.toString(Charsets.UTF_8) ?: return
+        if (pinResponse.contains("pin.ok")) {
+            log(Log.DEBUG, "Pin code is correct")
+            sendCommand("serial", EntireCheck.HW_VER)
+        }
+    }
+
+    companion object {
+        private val UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+        private val UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
+        private val UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+    }
 }
-
-
-
-

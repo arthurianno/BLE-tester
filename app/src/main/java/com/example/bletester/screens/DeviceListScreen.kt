@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,9 +96,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     //var endRange by remember { mutableLongStateOf(0L) }
     val toastMessage by scanViewModel.toastMessage.collectAsState()
     val optionTypeName = listOf(
-        DeviceListOption.ALL_DEVICES to "All",
-        DeviceListOption.CHECKED_DEVICES to "Approved",
-        DeviceListOption.UNCHEKED_DEVICES to "UnCheck"
+        DeviceListOption.ALL_DEVICES to "Все устройства",
+        DeviceListOption.CHECKED_DEVICES to "Проверенные",
+        DeviceListOption.UNCHEKED_DEVICES to "Не прошедшие проверку"
     )
     var startRange by rememberSaveable { mutableLongStateOf(0L) }
     var endRange by rememberSaveable { mutableLongStateOf(0L) }
@@ -227,7 +230,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = "Dropdown Icon") },
-                        label = { Text("Device Type") }
+                        label = { Text("Тип устройства") }
                     )
 
                     DropdownMenu(
@@ -259,7 +262,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         startRange = longValue
                         isStartRangeValid.value = newValue.matches(Regex("^\\d{10}$"))
                                     },
-                    label = { Text("Start") },
+                    label = { Text("Начало диапазона") },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 8.dp)
@@ -283,7 +286,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         endRange = longValue
                         isEndRangeValid.value = newValue.matches(Regex("^\\d{10}$"))
                     },
-                    label = { Text("End") },
+                    label = { Text("Конец диапазона") },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 8.dp)
@@ -316,7 +319,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = "Dropdown Icon") },
-                        label = { Text("Mode") }
+                        label = { Text("Фильтр") }
                     )
 
                     DropdownMenu(
@@ -361,7 +364,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(backgroundColor = if (scanning) Color.Red else Color(0xFF6200EE))
                 ) {
                     val buttonIcon = if (scanning) Icons.Filled.Close else Icons.Filled.Search
-                    val buttonLabel = if (scanning) "STOP" else "SCAN IT!"
+                    val buttonLabel = if (scanning) "Завершить" else "Начать"
                     Icon(
                         imageVector = buttonIcon,
                         contentDescription = if (scanning) "Stop Icon" else "Search Icon",
@@ -375,19 +378,28 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
             Surface(
                 modifier = Modifier
-                    .padding(16.dp),
-                color = Color.White,
-                shape = RoundedCornerShape(10.dp),
-                shadowElevation = 6.dp
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .border(BorderStroke(1.dp, Color.Gray), shape = RoundedCornerShape(16.dp)),
+                color = Color(0xFFFFFFFF), // Светло-серый фон
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 0.dp
             ) {
-                LazyColumn {
-                    val devicesToShow = when (selectedModeType.first) {
-                        DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
-                        DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
-                        DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
-                    }
-                    itemsIndexed(devicesToShow) { _, device ->
-                        DeviceListItem(deviceName = device.name, deviceAddress = device.address)
+                Column {
+                    LazyColumn(
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        val devicesToShow = when (selectedModeType.first) {
+                            DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
+                            DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
+                            DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
+                        }
+                        itemsIndexed(devicesToShow) { index, device ->
+                            DeviceListItem(deviceName = device.name, deviceAddress = device.address)
+                            if (index < devicesToShow.lastIndex) {
+                                Divider(color = Color.LightGray, thickness = 1.dp)
+                            }
+                        }
                     }
                 }
             }
