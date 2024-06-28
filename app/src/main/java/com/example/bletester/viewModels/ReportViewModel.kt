@@ -3,7 +3,6 @@ package com.example.bletester.viewModels
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Environment
-import android.os.FileObserver
 import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -12,7 +11,14 @@ import com.example.bletester.ReportItem
 import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.ini4j.Wini
 import java.io.File
 import java.text.SimpleDateFormat
@@ -22,7 +28,6 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
-@Suppress("DEPRECATION")
 @SuppressLint("NewApi")
 @HiltViewModel
 class ReportViewModel @Inject constructor(@ApplicationContext private val context: Context) : ViewModel() {
@@ -32,13 +37,14 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     val toastMessage = MutableStateFlow<String?>(null)
     var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
     //val addressRange = mutableStateOf<Pair<String, String>?>(null)
+    private var fileObserverJob: Job? = null
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val counter = MutableStateFlow(0)
-    private val checkedFiles = mutableSetOf<String>()
+    private var checkedFiles = mutableMapOf<String, Long>()
     private val dcimDirectory: File? = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     private val bleTesterDirectory = File(dcimDirectory, "BLE Tester Directory")
     private val reportsDirectory = File(bleTesterDirectory, "Reports")
     private val tasksDirectory = File(bleTesterDirectory, "Tasks")
-    private lateinit var tasksDirectoryObserver: FileObserver
     private var callbackFileModifyEvent : FileModifyEvent? = null
     private var type: String? = null
     private val typeOfError = mapOf(
@@ -54,10 +60,16 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     init {
         createReportsDirectory()
         startObservingTasksDirectory()
-        Log.d("ReportViewModel", "ViewModel initialized, FileObserver should be active")
+        checkDirectoryPermissions()
+        Log.d("ReportViewModel", "ViewModel initialized, file observation should be active")
     }
     fun registerCallback(callbackFileModifyEvent: FileModifyEvent){
         this.callbackFileModifyEvent = callbackFileModifyEvent
+    }
+    private fun checkDirectoryPermissions() {
+        if (!tasksDirectory.canRead() || !tasksDirectory.canWrite()) {
+            Log.e("ReportViewModel", "Недостаточно прав для работы с директорией: ${tasksDirectory.absolutePath}")
+        }
     }
 
     private fun createReportsDirectory() {
@@ -109,37 +121,45 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
 
     private fun startObservingTasksDirectory() {
-       tasksDirectoryObserver = object : FileObserver(tasksDirectory.path, CREATE or DELETE) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path != null) {
-                    when (event) {
-                        CREATE -> {
-                            Log.d("FileObserver", "File created: $path")
-                            handleNewFile(path)
-                        }
-                        DELETE -> {
-                            Log.d("FileObserver", "File deleted: $path")
-                            handleFileDeleted(path)
-                        }
-                        MODIFY -> {
-                            Log.d("FileObserver", "File modified: $path")
-                            handleFIleModify(path)
-                        }
-                    }
-                }
+        fileObserverJob?.cancel()
+        fileObserverJob = coroutineScope.launch {
+            while (isActive) {
+                checkForFileChanges()
+                delay(1000) // Проверка каждую секунду
             }
         }
-        tasksDirectoryObserver.startWatching()
+    }
+
+    private fun checkForFileChanges() {
+        val currentFiles = tasksDirectory.listFiles()?.associate { it.name to it.lastModified() } ?: emptyMap()
+
+        // Проверка новых файлов
+        currentFiles.keys.minus(checkedFiles.keys).forEach { newFileName ->
+            handleNewFile(newFileName)
+        }
+
+        // Проверка удаленных файлов
+        checkedFiles.keys.minus(currentFiles.keys).forEach { deletedFileName ->
+            handleFileDeleted(deletedFileName)
+        }
+
+        // Проверка измененных файлов
+        currentFiles.forEach { (fileName, lastModified) ->
+            if (checkedFiles.containsKey(fileName) && lastModified > checkedFiles[fileName]!!) {
+                handleFileModify(fileName)
+            }
+        }
+
+        checkedFiles = currentFiles.toMutableMap()
     }
 
     private fun handleNewFile(fileName: String) {
         try {
             val file = File(tasksDirectory, fileName)
-            if (file.isFile && !checkedFiles.contains(file.name)) {
-                checkedFiles.add(file.name)
-                notifyNewFile(file.name)
+            if (file.isFile) {
+                notifyNewFile(fileName)
                 counter.value++
-                Log.e("DeletedCheck","$callbackFileModifyEvent")
+                Log.e("DeletedCheck", "$callbackFileModifyEvent")
                 callbackFileModifyEvent?.onEvent("Auto")
             }
         } catch (e: Exception) {
@@ -149,21 +169,17 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
     private fun handleFileDeleted(fileName: String) {
         try {
-            val file = File(tasksDirectory, fileName)
-            if (checkedFiles.contains(file.name)) {
-                checkedFiles.remove(file.name)
-                Log.i("ReportViewModel", "Файл удален: $fileName")
-                counter.value--
-                Log.e("DeletedCheck","$callbackFileModifyEvent")
-                callbackFileModifyEvent?.onEvent("Deleted")
-                toastMessage.value = "Произошло удаление  файла, остановка задания и отправка отчета!"
-            }
+            Log.i("ReportViewModel", "Файл удален: $fileName")
+            counter.value--
+            Log.e("DeletedCheck", "$callbackFileModifyEvent")
+            callbackFileModifyEvent?.onEvent("Deleted")
+            toastMessage.value = "Произошло удаление файла, остановка задания и отправка отчета!"
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Ошибка при обработке удаления файла: ${e.message}")
         }
     }
 
-    private fun handleFIleModify(fileName: String){
+    private fun handleFileModify(fileName: String) {
         toastMessage.value = "Произошло изменение в файле, остановка задания и отправка отчета!"
         callbackFileModifyEvent?.onEvent("Modify")
     }
@@ -180,7 +196,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
     override fun onCleared() {
         super.onCleared()
-        tasksDirectoryObserver.stopWatching()
+        fileObserverJob?.cancel()
         _addressRange.value = null
         Log.i("ReportViewModel", "ViewModel был очищен и все задачи остановлены")
     }
@@ -310,15 +326,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
         ini.store()
     }
-    fun isReportFileExists(fileName: String): Boolean {
-        return try {
-            val file = File(reportsDirectory, fileName)
-            file.exists()
-        } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при проверке существования файла отчета: ${e.message}")
-            false
-        }
-    }
+
 
     fun loadTaskFromIni(fileName: String) {
         val file = File(tasksDirectory, fileName)
