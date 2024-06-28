@@ -52,9 +52,9 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
 
     init {
-
         createReportsDirectory()
         startObservingTasksDirectory()
+        Log.d("ReportViewModel", "ViewModel initialized, FileObserver should be active")
     }
     fun registerCallback(callbackFileModifyEvent: FileModifyEvent){
         this.callbackFileModifyEvent = callbackFileModifyEvent
@@ -109,17 +109,20 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
 
 
     private fun startObservingTasksDirectory() {
-        tasksDirectoryObserver = object : FileObserver(tasksDirectory.path, CREATE or DELETE) {
+       tasksDirectoryObserver = object : FileObserver(tasksDirectory.path, CREATE or DELETE) {
             override fun onEvent(event: Int, path: String?) {
                 if (path != null) {
                     when (event) {
                         CREATE -> {
+                            Log.d("FileObserver", "File created: $path")
                             handleNewFile(path)
                         }
                         DELETE -> {
+                            Log.d("FileObserver", "File deleted: $path")
                             handleFileDeleted(path)
                         }
                         MODIFY -> {
+                            Log.d("FileObserver", "File modified: $path")
                             handleFIleModify(path)
                         }
                     }

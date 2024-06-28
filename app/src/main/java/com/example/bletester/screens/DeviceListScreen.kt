@@ -2,7 +2,6 @@ package com.example.bletester.screens
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -90,10 +89,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
     val addressRange by reportViewModel._addressRange.collectAsState(null)
     val lifecycleOwner = LocalLifecycleOwner.current
-    //var startRange by remember { mutableLongStateOf(0L) }
-    val context = LocalContext.current
     val globalContext = LocalContext.current.applicationContext
-    //var endRange by remember { mutableLongStateOf(0L) }
     val toastMessage by scanViewModel.toastMessage.collectAsState()
     val optionTypeName = listOf(
         DeviceListOption.ALL_DEVICES to "Все устройства",
@@ -197,13 +193,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 }
             }
         }
-    }
-
-
-
-
-    fun showToast(context: Context, message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     Scaffold { innerPadding ->
@@ -352,14 +341,9 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             // Логика при начале сканирования
                             scanViewModel.scanLeDevice(currentDeviceType,startRange,endRange)
                             Log.e("ScanList","type of dev $currentDeviceType")
-                            //reportViewModel._addressRange.value = Pair(startRange.toString(), endRange.toString())
-                            //Log.e("DevicesListScreen", "this is range ${Pair(startRange, endRange)}")
-                           // reportViewModel.typeOfDevice.value = currentDeviceType
-                            //Log.e("DevicesListScreen", "this is letter $currentLetter")
                             scanViewModel.scanning.value = true
-                           // scanViewModel.scanning.value = true
-                        }
 
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(backgroundColor = if (scanning) Color.Red else Color(0xFF6200EE))
                 ) {

@@ -11,15 +11,16 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.EntireCheck
-    import com.example.bletester.Logger
-    import com.example.bletester.ReportItem
+import com.example.bletester.Logger
+import com.example.bletester.ReportItem
 import com.example.bletester.ble.BleCallbackEvent
-    import com.example.bletester.ble.BleControlManager
-    import com.example.bletester.ble.FileModifyEvent
+import com.example.bletester.ble.BleControlManager
+import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.LinkedList
 import java.util.Queue
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 
@@ -28,7 +29,7 @@ import javax.inject.Inject
     @SuppressLint("StaticFieldLeak")
         class ScanViewModel @Inject constructor (val bleControlManager: BleControlManager, private val reportViewModel: ReportViewModel) : ViewModel(),FileModifyEvent {
             val toastMessage = MutableStateFlow<String?>(null)
-            var deviceQueue: Queue<BluetoothDevice> = LinkedList()
+            private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
             var deviceQueueProcessed: Queue<BluetoothDevice> = LinkedList()
             var foundDevices = mutableStateListOf<BluetoothDevice>()
             val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
@@ -44,10 +45,11 @@ import javax.inject.Inject
             private var endR : Long = 0L
             private var diffRanges : Int? = 0
             private var counter = 0
-            var currentDevice: BluetoothDevice? = null
+            //var currentDevice: BluetoothDevice? = null
             var bannedDevices = mutableStateListOf<BluetoothDevice>()
             val progress = MutableStateFlow(0f)
             private var letter = ""
+            private var isFirstConnect = true
             private var isScanning: Boolean = false
         private val deviceTypeToLetter = mapOf(
             "Online" to "D",
@@ -93,15 +95,16 @@ import javax.inject.Inject
             toastMessage.value = "Сканирование!"
             startR = start
             endR = end
-            currentDevice = null
+            //currentDevice = null
             deviceQueue.clear()
             foundDevices.clear()
             unCheckedDevices.clear()
             checkedDevices.clear()
             deviceQueueProcessed.clear()
             bannedDevices.clear()
-            counter = 0
+            //counter = 0
             diffRanges = (end - start + 1).toInt()
+            counter = diffRanges as Int
             if (!scanning.value) {
                 stopRequested = false
                 scanning.value = true
@@ -122,6 +125,7 @@ import javax.inject.Inject
             isScanning = false
             stopRequested = true
             scanning.value = false
+            isFirstConnect = true
             Log.i("SCAN", " STOP SCANNING")
             foundDevices.clear()
             deviceQueue.clear()
@@ -157,7 +161,6 @@ import javax.inject.Inject
             }
         }
 
-
         @SuppressLint("MissingPermission")
         private fun leScanCallback(letter: String, start: Long, end: Long) = object : ScanCallback() {
             @SuppressLint("MissingPermission", "SuspiciousIndentation")
@@ -173,23 +176,20 @@ import javax.inject.Inject
                         val lastFourDigits = deviceName.takeLast(4).toInt()
                         if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
                             if(device.address !in bannedDevices.map { it.address }) {
-                                Log.e("ScanViewModel", "device $deviceName")
                                 if (device.address !in deviceQueue.map { it.address } && device.address !in foundDevices.map { it.address } && device.address !in checkedDevices.map { it.address }) {
                                     deviceQueue.add(device)
                                     foundDevices.add(device)
-                                    if (currentDevice == null) {
-                                        currentDevice = device
+                                    Log.e("ScanViewModel", "device $deviceName")
+                                    if (isFirstConnect) {
+                                        isFirstConnect = false
                                         connectionToAnotherDevice()
                                     }
-                                }else{
-                                    Log.e("Filters  in massivs","Devices : $device in massivs type!")
                                 }
-                            }else{
-                                Log.e("Filters banned","Devices : $device in banned type!")
                             }
                             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
 
                                 override fun onHandleCheck() {
+                                    counter--
                                     connectionToAnotherDevice()
                                     Log.e("onHandleCheck","connection To Another Dev after Callback")
                                 }
@@ -201,96 +201,94 @@ import javax.inject.Inject
 
                                     if (versionPrefix == null || versionNumber == null) {
                                         Log.e("ScanViewModel", "Invalid version format")
-                                        currentDevice = null
-                                        connectionToAnotherDevice()
-                                        return
-                                    }
-
-                                    Log.e("ScanViewModel", "Version: $version")
-
-                                    if (versionNumber in start..end && versionPrefix.toString()
-                                            .contains(letter)
-                                    ) {
-                                        Log.e("ScanViewModel", "Device serial number in range!")
-                                        Log.e(
-                                            "ScanViewModel",
-                                            "Device added to checkedDevices: $devicesChecked"
-                                        )
-                                        checkedDevices.add(devicesChecked)
-                                        bleControlManager.sendCommand("ble.off",EntireCheck.default_command)
-                                        currentDevice = null
-                                    } else {
-                                        Log.e("ScanViewModel", "Device serial number out of range!")
-                                        Log.e("ScanViewModel", "Device added to BANNED LIST!")
-                                        bannedDevices.add(device)
-                                        counter--
                                         bleControlManager.disconnect().enqueue()
-                                        Log.e("Counter","$counter after adding from banned")
-                                        currentDevice = null
+                                        return
+                                    }else{
+                                        Log.e("ScanViewModel", "Version: $version")
+
+                                        if (versionNumber in start..end && versionPrefix.toString()
+                                                .contains(letter)
+                                        ) {
+                                            Log.e("ScanViewModel", "Device serial number in range!")
+                                            Log.e(
+                                                "ScanViewModel",
+                                                "Device added to checkedDevices: $devicesChecked"
+                                            )
+                                            checkedDevices.add(devicesChecked)
+                                            bleControlManager.sendCommand("ble.off",EntireCheck.default_command)
+                                            bleControlManager.disconnect().enqueue()
+                                        } else {
+                                            Log.e("ScanViewModel", "Device serial number out of range!")
+                                            Log.e("ScanViewModel", "Device added to BANNED LIST!")
+                                            bannedDevices.add(device)
+                                            bleControlManager.disconnect().enqueue()
+                                            Log.e("diffRanges","$counter after adding from banned")
+                                        }
                                     }
                                 }
                             })
-
                         }
                     }
                 }
             }
 
-            @SuppressLint("MissingPermission")
-            fun connectionToAnotherDevice() {
-                if (diffRanges!! != counter) {
-                    Log.e("diffRanges","$diffRanges")
-                    Log.e("Counter","$counter")
-                    if (deviceQueue.isNotEmpty() && scanning.value) {
-                        Log.e("BleQueue","$deviceQueue")
-                       var currentDevice = deviceQueue.remove()
-                        if (currentDevice.address !in bannedDevices.map { it.address }) {
-                            counter++
-                            currentDevice?.let {
-                                bleControlManager.connect(it)
-                                    .done { device ->
-                                        Log.d(
-                                            "BleControlManager",
-                                            "Connected to device ${device.name}"
-                                        )
-                                        bleControlManager.sendPinCommand(
-                                            "master",
-                                            EntireCheck.PIN_C0DE
-                                        )
-                                        foundDevices.remove(device)
-                                        if (unCheckedDevices.contains(device)) {
-                                            unCheckedDevices.remove(device)
-                                        }
-                                        deviceQueueProcessed.add(device)
+        @SuppressLint("MissingPermission")
+        fun connectionToAnotherDevice() {
+            Log.e("diffRanges","$diffRanges")
+            if (counter != 0) {
+                Log.e("diffRanges","$diffRanges")
+                Log.e("Counter","$counter")
+                if (deviceQueue.isNotEmpty() && scanning.value) {
+                    Log.e("BleQueue", "$deviceQueue")
+                    var currentDevice = deviceQueue.remove()
+                    if (currentDevice.address !in bannedDevices.map { it.address }) {
+                        currentDevice?.let {
+                            bleControlManager.connect(it)
+                                .done { device ->
+                                    Log.d(
+                                        "BleControlManager",
+                                        "Connected to device ${device.name}"
+                                    )
+                                    bleControlManager.sendPinCommand(
+                                        "master",
+                                        EntireCheck.PIN_C0DE
+                                    )
+                                    foundDevices.remove(device)
+                                    if (unCheckedDevices.contains(device)) {
+                                        unCheckedDevices.remove(device)
                                     }
-                                    .fail { device, status ->
-                                        counter--
-                                        Log.e(
-                                            "BleControlManager",
-                                            "Failed to connect to device ${device.name}: $status"
-                                        )
-                                        errorMessage = "Failed to connect: $status"
-                                        foundDevices.remove(device)
-                                        if (!unCheckedDevices.contains(device) && !stopRequested) {
-                                            unCheckedDevices.add(device)
-                                        }
-                                        if(!deviceQueue.contains(device) && !stopRequested){
-                                            deviceQueue.add(device)
-                                        }
-                                        Log.e("Counter", "$counter after mining")
-                                        currentDevice = null
-                                        connectionToAnotherDevice()
+                                    deviceQueueProcessed.add(device)
+                                }
+                                .fail { device, status ->
+                                    Log.e(
+                                        "BleControlManager",
+                                        "Failed to connect to device ${device.name}: $status"
+                                    )
+                                    counter++
+                                    errorMessage = "Failed to connect: $status"
+                                    foundDevices.remove(device)
+                                    if (!unCheckedDevices.contains(device) && !stopRequested) {
+                                        unCheckedDevices.add(device)
                                     }
-                                    .enqueue()
-                            }
-                        }else{
-                            connectionToAnotherDevice()
+                                    if (!deviceQueue.contains(device) && !stopRequested) {
+                                        deviceQueue.add(device)
+                                    }
+                                    Log.e("diffRanges", "$counter after mining")
+                                    currentDevice = null
+                                    connectionToAnotherDevice()
+                                }
+                                .enqueue()
+
                         }
+                    } else {
+                        connectionToAnotherDevice()
+                    }
 
                     }else{
                         Log.e("ScanViewModel","Коннект не возможен так как сканирование окончено или очередь пуста!")
                     }
                 } else {
+                Log.e("ScanViewModel","ОСТАНОВКА")
                     stopScanning()
                     updateReportViewModel("")
                 }
