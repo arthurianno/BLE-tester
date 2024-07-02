@@ -17,9 +17,10 @@ class BleControlManager(context: Context) : BleManager(context) {
 
     private var serialNumber: String = ""
     private var bleCallbackEvent: BleCallbackEvent? = null
-
+    private var connectionTime: Long = 0
     private var controlRequest: BluetoothGattCharacteristic? = null
     private var controlResponse: BluetoothGattCharacteristic? = null
+    private var connectedDevice: BluetoothDevice? = null
 
     fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent) {
         this.bleCallbackEvent = bleCallbackEvent
@@ -31,28 +32,33 @@ class BleControlManager(context: Context) : BleManager(context) {
 
     override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
         gatt.getService(UART_SERVICE_UUID)?.let { service ->
-                controlRequest = service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID)
+            controlRequest = service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID)
             controlResponse = service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID)
         }
+        connectedDevice = gatt.device
         return controlRequest != null && controlResponse != null
     }
 
+
     override fun initialize() {
         super.initialize()
-        setNotificationCallback(controlResponse).with { _: BluetoothDevice, data: Data ->
-                handleResponseData(data.value)
+        connectionTime = System.currentTimeMillis()
+        setNotificationCallback(controlResponse).with { device: BluetoothDevice, data: Data ->
+            connectedDevice = device
+            handleResponseData(data.value)
         }
         enableNotifications(controlResponse).enqueue()
     }
 
+
     override fun onServicesInvalidated() {
         controlRequest = null
         controlResponse = null
+        connectedDevice = null
         disconnect().enqueue()
-        bleCallbackEvent?.onHandleCheck()
-
     }
-
+    fun getConnectionTime(): Long = connectionTime
+    fun getConnectedDevice(): BluetoothDevice? = connectedDevice
     fun sendCommand(command: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {
             ScanViewModel.entireCheckQueue.add(entireCheck)
@@ -83,6 +89,7 @@ class BleControlManager(context: Context) : BleManager(context) {
                 .enqueue()
         }
     }
+
 
     private fun handleResponseData(data: ByteArray?) {
         val entireCheck = ScanViewModel.entireCheckQueue.poll() ?: run {
@@ -116,6 +123,7 @@ class BleControlManager(context: Context) : BleManager(context) {
                 log(Log.DEBUG, "updating hwVer $defaultResponse")
         if (defaultResponse.contains("ble.ok")) {
             log(Log.INFO, "DEVICES STARTING TO OFF")
+            bleCallbackEvent?.onHandleCheck()
         }
     }
 

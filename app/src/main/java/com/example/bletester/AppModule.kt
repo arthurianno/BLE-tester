@@ -40,9 +40,10 @@ object AppModule {
     @Singleton
     fun provideScanViewModel(
         bleControlManager: BleControlManager,
-        reportViewModel: ReportViewModel
+        reportViewModel: ReportViewModel,
+        @ApplicationContext context: Context
     ): ScanViewModel {
-        return ScanViewModel(bleControlManager, reportViewModel)
+        return ScanViewModel(context, reportViewModel)
     }
 
     @Provides
