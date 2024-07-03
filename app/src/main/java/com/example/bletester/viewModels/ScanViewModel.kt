@@ -20,11 +20,17 @@ import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.ble.FileModifyEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import java.util.LinkedList
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
+
+private const val TAG = "ScanViewModel"
+private const val MAX_CONNECTIONS = 5
 
 @Suppress("DEPRECATION")
 @HiltViewModel
@@ -67,7 +73,6 @@ class ScanViewModel @Inject constructor(
     )
 
     private val bleControlManagers = mutableMapOf<String, BleControlManager>()
-    private val maxConnections = 7
 
     init {
         reportViewModel.registerCallback(this)
@@ -77,7 +82,7 @@ class ScanViewModel @Inject constructor(
 
     private fun buildSettings() =
         ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .build()
 
     private fun buildFilter() =
@@ -88,11 +93,12 @@ class ScanViewModel @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun scanLeDevice(letter: String, start: Long, end: Long) {
+        Logger.i(TAG, "Scanning started for device type: $letter, range: $start - $end")
         val typeOfLetterForReport = deviceTypeToLetterToReport[letter]
         reportViewModel._addressRange.value = Pair(start.toString(), end.toString())
-        Log.e("DevicesListScreen", "this is range ${Pair(start, end)}")
+        Log.d(TAG, "Address range: ${Pair(start, end)}")
         reportViewModel.typeOfDevice.value = typeOfLetterForReport
-        Log.e("DevicesListScreen", "this is letter to report $typeOfLetterForReport")
+        Log.d(TAG, "Device type for report: $typeOfLetterForReport")
         toastMessage.value = "Сканирование!"
         startR = start
         endR = end
@@ -108,28 +114,33 @@ class ScanViewModel @Inject constructor(
         if (!scanning.value) {
             stopRequested = false
             scanning.value = true
-            bluetoothLeScanner?.startScan(leScanCallback())
-            Log.i("SCAN", "SCANNING")
-            Logger.i("ScanViewModel", "SCANNING")
+            bluetoothLeScanner?.startScan(filters, settings, leScanCallback())
+                ?: Log.e(TAG, "BluetoothLeScanner is null")
+            Log.i(TAG, "Scanning started")
+            Logger.i(TAG, "Scanning started")
         } else {
-            Log.e("ScanCheckLog", "VALUE OF SCAN ${scanning.value}")
+            Log.w(TAG, "Scanning is already in progress")
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stopScanning() {
-        bleControlManagers.values.forEach { it.disconnect().enqueue() }
+        Logger.i(TAG, "Stopping scan and disconnecting all devices")
         toastMessage.value = "Остановка сканирования!"
         isScanning = false
         stopRequested = true
         scanning.value = false
         isFirstConnect = true
-        Log.i("SCAN", " STOP SCANNING")
-        foundDevices.clear()
-        deviceQueue.clear()
-        deviceQueueProcessed.clear()
-        bleControlManagers.clear()
-        Log.e("ScanViewModel", "Сканирование остановлено и очередь устройств очищена")
+        Log.i(TAG, "Stopping scan")
+        bluetoothLeScanner?.stopScan(leScanCallback())
+        CoroutineScope(Dispatchers.IO).launch {
+            bleControlManagers.values.forEach { it.disconnect().enqueue() }
+            foundDevices.clear()
+            deviceQueue.clear()
+            deviceQueueProcessed.clear()
+            bleControlManagers.clear()
+            Log.d(TAG, "Scan stopped and device queue cleared")
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -139,7 +150,7 @@ class ScanViewModel @Inject constructor(
                 device = device.name ?: "Unknown Device",
                 deviceAddress = device.address,
                 status = status,
-                interpretation = errorMessage?.let { errorMessage } ?: "Устройство не в эфире!"
+                interpretation = errorMessage ?: "Устройство не в эфире!"
             )
         }
     }
@@ -153,15 +164,14 @@ class ScanViewModel @Inject constructor(
             } else {
                 reportViewModel.updateReportItems(uncheckedReportItems, approvedReportItems)
             }
-            Log.i("ScanViewModel", "${unCheckedDevices.toList()}")
+            Log.d(TAG, "Report updated with ${unCheckedDevices.size} unchecked and ${checkedDevices.size} checked devices")
         } else {
-            Log.i("ScanViewModel", "Сканирование все еще идет, отчет не обновляется")
+            Log.w(TAG, "Scanning is still in progress, report not updated")
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun leScanCallback() = object : ScanCallback() {
-        @SuppressLint("MissingPermission", "SuspiciousIndentation")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
             if (stopRequested) return
@@ -169,17 +179,21 @@ class ScanViewModel @Inject constructor(
             val deviceName = device.name ?: return
             val startLastFour = startR.toString().takeLast(4)
             val endLastFour = endR.toString().takeLast(4)
-            if (deviceName.contains("Satellite")) {
-                val lastFourDigits = deviceName.takeLast(4).toInt()
-                if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
-                    if (device.address !in bannedDevices.map { it.address }) {
-                        if (device.address !in deviceQueue.map { it.address } &&
+
+            when {
+                !deviceName.contains("Satellite") -> return
+                else -> {
+                    val lastFourDigits = deviceName.takeLast(4).toIntOrNull() ?: return
+                    if (lastFourDigits in (startLastFour.toInt()..endLastFour.toInt())) {
+                        if (device.address !in bannedDevices.map { it.address } &&
+                            device.address !in deviceQueue.map { it.address } &&
                             device.address !in foundDevices.map { it.address } &&
                             device.address !in checkedDevices.map { it.address }) {
+                            Logger.d(TAG, "Device added to queue: $deviceName (${device.address})")
                             deviceQueue.add(device)
                             foundDevices.add(device)
-                            Log.e("ScanViewModel", "device $deviceName")
-                            if (bleControlManagers.size < maxConnections) {
+                            Log.d(TAG, "Device added to queue: $deviceName")
+                            if (bleControlManagers.size < MAX_CONNECTIONS) {
                                 connectionToAnotherDevice()
                             }
                         }
@@ -187,64 +201,76 @@ class ScanViewModel @Inject constructor(
                 }
             }
         }
+
+        override fun onScanFailed(errorCode: Int) {
+            Log.e(TAG, "Scan failed with error code: $errorCode")
+            stopScanning()
+        }
     }
 
-    @SuppressLint("MissingPermission", "SuspiciousIndentation")
+    @SuppressLint("MissingPermission")
     fun connectionToAnotherDevice() {
-        Log.i("ScanCounter","Counter: $counter")
-        if (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0) {
-            if (deviceQueue.isNotEmpty() && bleControlManagers.size < maxConnections) {
-                val currentDevice = deviceQueue.remove()
-                if (currentDevice.address !in bannedDevices.map { it.address }) {
-                    val bleControlManager = BleControlManager(context)
-                    bleControlManagers[currentDevice.address] = bleControlManager
+        Log.d(TAG, "Attempting to connect to another device. Counter: $counter")
+        when {
+            deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0 -> {
+                if (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
+                    val currentDevice = deviceQueue.remove()
+                    if (currentDevice.address !in bannedDevices.map { it.address }) {
+                        val bleControlManager = BleControlManager(context)
+                        bleControlManagers[currentDevice.address] = bleControlManager
+                        Logger.d(TAG, "Attempting to connect to device: ${currentDevice.name} (${currentDevice.address})")
+                        setupBleControlManager(bleControlManager)
 
-                    setupBleControlManager(bleControlManager)
-
-                    bleControlManager.connect(currentDevice)
-                        .done { device ->
-                            Log.d("BleControlManager", "Connected to device ${device.name}")
-                            bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
-                            foundDevices.remove(device)
-                            unCheckedDevices.remove(device)
-                            deviceQueueProcessed.add(device)
-                        }
-                        .fail { device, status ->
-                            Log.e("BleControlManager", "Failed to connect to device ${device.name}: $status")
-                            errorMessage = "Failed to connect: $status"
-                            foundDevices.remove(device)
-                            if (!stopRequested && device.address !in checkedDevices.map { it.address }) {
-                                if(!unCheckedDevices.contains(device))
-                                    unCheckedDevices.add(device)
-                                deviceQueue.add(device)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                bleControlManager.connect(currentDevice)
+                                    .done { device ->
+                                        Log.d(TAG, "Connected to device ${device.name}")
+                                        bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
+                                        foundDevices.remove(device)
+                                        unCheckedDevices.remove(device)
+                                        deviceQueueProcessed.add(device)
+                                    }
+                                    .fail { device, status ->
+                                        Log.e(TAG, "Failed to connect to device ${device.name}: $status")
+                                        errorMessage = "Failed to connect: $status"
+                                        foundDevices.remove(device)
+                                        if (!stopRequested && device.address !in checkedDevices.map { it.address }) {
+                                            if (!unCheckedDevices.contains(device))
+                                                unCheckedDevices.add(device)
+                                            deviceQueue.add(device)
+                                        }
+                                        bleControlManagers.remove(device.address)
+                                        bleControlManager.close()
+                                        connectionToAnotherDevice()
+                                    }
+                                    .enqueue()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error during connection attempt: ${e.message}")
                             }
-                            bleControlManagers.remove(device.address)
-                            bleControlManager.close()
-                            connectionToAnotherDevice()
                         }
-                        .enqueue()
-                } else {
-                    connectionToAnotherDevice()  // Пропускаем забаненное устройство
-                }
-            } else if (bleControlManagers.size >= maxConnections) {
-                // Ждем освобождения соединений
-                Handler(Looper.getMainLooper()).postDelayed({
-                    connectionToAnotherDevice()
-                }, 500)
-            }
-        } else {
-            // Проверяем, все ли устройства обработаны
-            if (foundDevices.isEmpty() && counter == 0) {
-                Log.e("ScanViewModel", "Все устройства обработаны")
-                stopScanning()
-                updateReportViewModel("")
-            } else {
-                // Если еще остались необработанные устройства, продолжаем сканирование
-                Handler(Looper.getMainLooper()).postDelayed({
-                    if(scanning.value){
+                    } else {
                         connectionToAnotherDevice()
                     }
-                }, 500)
+                } else if (bleControlManagers.size >= MAX_CONNECTIONS) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        connectionToAnotherDevice()
+                    }, 500)
+                }
+            }
+            else -> {
+                if (foundDevices.isEmpty() && counter == 0) {
+                    Log.d(TAG, "All devices processed")
+                    Logger.i(TAG, "All devices processed. Stopping scan and updating report.")
+                    stopScanning()
+                    updateReportViewModel("")
+                } else {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (scanning.value) {
+                            connectionToAnotherDevice()
+                        }
+                    }, 500)
+                }
             }
         }
     }
@@ -252,50 +278,47 @@ class ScanViewModel @Inject constructor(
     private fun setupBleControlManager(bleControlManager: BleControlManager) {
         bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
             override fun onHandleCheck() {
-                Log.e("onHandleCheck", "connection To Another Dev after Callback")
-
+                Log.d(TAG, "Handle check callback received")
             }
             override fun onVersionCheck(version: String) {
+
                 val versionPrefix = version.firstOrNull()
                 val versionNumber = version.substring(1).toLongOrNull()
                 val device = bleControlManager.getConnectedDevice()
 
                 if (versionPrefix == null || versionNumber == null || device == null) {
-                    Log.e("ScanViewModel", "Invalid version format or no connected device")
-                    bleControlManager.disconnect().done {
-                        bleControlManager.close()
-                        bleControlManagers.remove(device?.address)
-                        connectionToAnotherDevice()
-                    }.enqueue()
+                    Log.e(TAG, "Invalid version format or no connected device")
+                    disconnectAndCleanup(bleControlManager, device)
                     return
                 }
+                Logger.i(TAG, "Device version check: $version for device ${device.address}")
 
-                Log.e("ScanViewModel", "Version: $version")
+                Log.d(TAG, "Version received: $version")
 
                 if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
-                    Log.e("ScanViewModel", "Device serial number in range!")
-                    Log.e("ScanViewModel", "Device added to checkedDevices: $device")
+                    Log.d(TAG, "Device serial number in range!")
                     checkedDevices.add(device)
-                    unCheckedDevices.remove(device)  // Добавьте эту строку здесь
+                    unCheckedDevices.remove(device)
                     bleControlManager.sendCommand("ble.off", EntireCheck.default_command)
                     counter--
-                    bleControlManager.disconnect().done {
-                        bleControlManager.close()
-                        bleControlManagers.remove(device.address)
-                        connectionToAnotherDevice()
-                    }.enqueue()
+                    disconnectAndCleanup(bleControlManager, device)
                 } else {
-                    Log.e("ScanViewModel", "Device serial number out of range!")
-                    Log.e("ScanViewModel", "Device added to BANNED LIST!")
+                    Log.d(TAG, "Device serial number out of range. Added to banned list.")
                     bannedDevices.add(device)
-                    bleControlManager.disconnect().done {
-                        bleControlManager.close()
-                        bleControlManagers.remove(device.address)
-                        connectionToAnotherDevice()
-                    }.enqueue()
+                    disconnectAndCleanup(bleControlManager, device)
                 }
             }
         })
+    }
+
+    private fun disconnectAndCleanup(bleControlManager: BleControlManager, device: BluetoothDevice?) {
+        CoroutineScope(Dispatchers.IO).launch {
+            bleControlManager.disconnect().done {
+                bleControlManager.close()
+                device?.let { bleControlManagers.remove(it.address) }
+                connectionToAnotherDevice()
+            }.enqueue()
+        }
     }
 
     override fun onEvent(event: String) {
@@ -310,15 +333,15 @@ class ScanViewModel @Inject constructor(
             }
             event.contains("Auto") -> {
                 letter = deviceTypeToLetter[reportViewModel.typeOfDevice.value.toString()].toString()
-                reportViewModel._addressRange.value?.first?.toLong()?.let {
-                    reportViewModel._addressRange.value?.second?.toLong()?.let { it1 ->
-                        scanLeDevice(
-                            letter,
-                            it,
-                            it1
-                        )
+                reportViewModel._addressRange.value?.let { range ->
+                    val start = range.first.toLongOrNull()
+                    val end = range.second.toLongOrNull()
+                    if (start != null && end != null) {
+                        scanLeDevice(letter, start, end)
+                    } else {
+                        Log.e(TAG, "Invalid address range")
                     }
-                }
+                } ?: Log.e(TAG, "Address range is null")
             }
         }
     }

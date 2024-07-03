@@ -130,11 +130,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     var showDropdownOption by remember { mutableStateOf(false) }
     val isStartRangeValid = remember { mutableStateOf(true) }
     val isEndRangeValid = remember { mutableStateOf(true) }
-    val deviceTypeToLetter = mapOf(
-        "SatelliteOnline" to "D",
-        "SatelliteVoice" to "E",
-        "AnotherDevice" to "F"
-    )
     val totalDevices = if (endRange > startRange) {
         (endRange - startRange + 1).toInt()
     } else {
@@ -158,11 +153,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         }
     }
 
-    val currentLetter by remember {
-        derivedStateOf {
-            deviceTypeToLetter[selectedDeviceType] ?: ""
-        }
-    }
+
 
     val currentDeviceType by remember {
         derivedStateOf {
@@ -333,8 +324,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                 Button(
                     onClick = {
                         if (scanning) {
-                            Log.e("Click","scanning updt $scanning")
-                            // Логика при остановке сканирования
                             scanViewModel.stopScanning()
                             scanViewModel.updateReportViewModel("Manual")
                         } else {
