@@ -60,7 +60,7 @@ class BleControlManager(context: Context) : BleManager(context) {
         connectedDevice = null
         disconnect().enqueue()
     }
-    fun getConnectionTime(): Long = connectionTime
+
     fun getConnectedDevice(): BluetoothDevice? = connectedDevice
     fun sendCommand(command: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {

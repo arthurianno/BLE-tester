@@ -160,8 +160,8 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             // Преобразование типа устройства в соответствующее значение для отчета
             when (selectedDeviceType) {
                 "SatelliteOnline" -> "D"
-                "SatelliteVoice" -> "F"
-                "AnotherDevice" -> "E"
+                "SatelliteVoice" -> "E"
+                "AnotherDevice" -> "F"
                 else -> ""
             }
         }

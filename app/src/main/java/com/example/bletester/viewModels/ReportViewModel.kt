@@ -4,8 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Environment
 import android.util.Log
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.example.bletester.ReportItem
 import com.example.bletester.ble.FileModifyEvent
@@ -35,8 +33,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     val typeOfDevice = MutableStateFlow<String?>(null)
     private var approvedItems: List<ReportItem> = emptyList()
     val toastMessage = MutableStateFlow<String?>(null)
-    var reportItems: MutableState<List<ReportItem>> = mutableStateOf(emptyList())
-    //val addressRange = mutableStateOf<Pair<String, String>?>(null)
+    val reportItems = MutableStateFlow<List<ReportItem>>(emptyList())
     private var fileObserverJob: Job? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val counter = MutableStateFlow(0)
@@ -68,7 +65,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
     private fun checkDirectoryPermissions() {
         if (!tasksDirectory.canRead() || !tasksDirectory.canWrite()) {
-            Log.e("ReportViewModel", "Недостаточно прав для работы с директорией: ${tasksDirectory.absolutePath}")
+            Log.e("ReportViewModel", "Not enough permissions to work with the directory: ${tasksDirectory.absolutePath}")
         }
     }
 
@@ -76,9 +73,9 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         listOf(bleTesterDirectory, reportsDirectory, tasksDirectory).forEach { directory ->
             if (!directory.exists()) {
                 directory.mkdirs()
-                Log.i("YourTag", "Папка ${directory.name} создана: ${directory.absolutePath}")
+                Log.i("ReportViewModel", "Folder ${directory.name} created: ${directory.absolutePath}")
             } else {
-                Log.i("YourTag", "Папка ${directory.name} уже существует: ${directory.absolutePath}")
+                Log.i("ReportViewModel", "Folder ${directory.name} is exist : ${directory.absolutePath}")
             }
         }
     }
@@ -93,7 +90,6 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         return (startNumber..endNumber).map { it.toString().padStart(start.length, '0') }
     }
     fun updateReportItems(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
-        // Проверяем, изменились ли списки отчетных элементов или нет
         if (reportItems.value != itemsUnchecked || approvedItems != itemsApproved) {
             reportItems.value = itemsUnchecked
             approvedItems = itemsApproved
@@ -101,11 +97,11 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             Log.e("TestReportView", "$reportItems")
             Log.e("TestReportView", "$approvedItems")
 
-            saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
+            saveReport(reportItems.value)
         } else {
-            // Если списки не изменились, все равно сохраняем отчет
-            saveReport(reportItems.value)  // Сохраняем отчет даже если списки пустые
-            Log.i("ReportViewModel", "Списки не изменились, но отчет все равно сохранен")
+
+            saveReport(reportItems.value)
+            Log.i("ReportViewModel", "The lists have not changed, but the report is still saved.")
         }
     }
     fun updateReportItemsManual(itemsUnchecked: List<ReportItem>, itemsApproved: List<ReportItem>) {
@@ -115,7 +111,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
             Log.e("TestReportView", "$reportItems")
             Log.e("TestReportView", "$approvedItems")
         } else {
-            Log.i("ReportViewModel", "Обновление устройств не прошедших проверку!")
+            Log.i("ReportViewModel", "Update devices who failed verification!")
         }
     }
 
@@ -125,7 +121,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         fileObserverJob = coroutineScope.launch {
             while (isActive) {
                 checkForFileChanges()
-                delay(1000) // Проверка каждую секунду
+                delay(1000)
             }
         }
     }
@@ -133,17 +129,17 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private fun checkForFileChanges() {
         val currentFiles = tasksDirectory.listFiles()?.associate { it.name to it.lastModified() } ?: emptyMap()
 
-        // Проверка новых файлов
+
         currentFiles.keys.minus(checkedFiles.keys).forEach { newFileName ->
             handleNewFile(newFileName)
         }
 
-        // Проверка удаленных файлов
+
         checkedFiles.keys.minus(currentFiles.keys).forEach { deletedFileName ->
             handleFileDeleted(deletedFileName)
         }
 
-        // Проверка измененных файлов
+
         currentFiles.forEach { (fileName, lastModified) ->
             if (checkedFiles.containsKey(fileName) && lastModified > checkedFiles[fileName]!!) {
                 handleFileModify(fileName)
@@ -163,19 +159,19 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 callbackFileModifyEvent?.onEvent("Auto")
             }
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при обработке нового файла: ${e.message}")
+            Log.e("ReportViewModel", "Error with processing new file: ${e.message}")
         }
     }
 
     private fun handleFileDeleted(fileName: String) {
         try {
-            Log.i("ReportViewModel", "Файл удален: $fileName")
+            Log.i("ReportViewModel", "File deleted: $fileName")
             counter.value--
             Log.e("DeletedCheck", "$callbackFileModifyEvent")
             callbackFileModifyEvent?.onEvent("Deleted")
             toastMessage.value = "Произошло удаление файла, остановка задания и отправка отчета!"
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при обработке удаления файла: ${e.message}")
+            Log.e("ReportViewModel", "Error with processing file: ${e.message}")
         }
     }
 
@@ -187,10 +183,10 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     private fun notifyNewFile(fileName: String) {
         try {
             toastMessage.value = "Найден новый отчет: $fileName"
-            Log.e("ReportViewModel", "Новый Отчет! : $fileName")
+            Log.e("ReportViewModel", "New report! : $fileName")
             loadTaskFromIni(fileName)
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при уведомлении о новом файле: ${e.message}")
+            Log.e("ReportViewModel", "Error form update file: ${e.message}")
         }
     }
 
@@ -198,7 +194,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         super.onCleared()
         fileObserverJob?.cancel()
         _addressRange.value = null
-        Log.i("ReportViewModel", "ViewModel был очищен и все задачи остановлены")
+        Log.i("ReportViewModel", "ViewModel was cleared and task stops")
     }
 
     fun saveReport(reportItems: List<ReportItem>) {
@@ -218,21 +214,21 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 summaryReportFile.createNewFile()
             }
 
-            // Проверка, если список reportItems пуст
+
             if (reportItems.isNotEmpty()) {
                 saveIniFile(detailedReportFile.absolutePath,reportItems)
                 saveIniFileSummary(summaryReportFile.absolutePath,reportItems)
-                Log.i("ReportViewModel", "Отчеты успешно сохранены локально: ${detailedReportFile.absolutePath}, ${summaryReportFile.absolutePath}")
+                Log.i("ReportViewModel", "Reports have been successfully saved locally: ${detailedReportFile.absolutePath}, ${summaryReportFile.absolutePath}")
                 toastMessage.value = "Отчеты успешно сохранены локально"
             } else {
                 saveIniFile(detailedReportFile.absolutePath,reportItems)
                 saveIniFileSummary(summaryReportFile.absolutePath,reportItems)
-                Log.e("ReportViewModel", "Отчет пустой, но данные все равно сохранены")
-                toastMessage.value = "Отчет пустой, но данные все равно сохранены"
+                Log.e("ReportViewModel", "The report is empty, but the data is saved anyway")
+                toastMessage.value = "Отчет сохранен!"
 
             }
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Ошибка при сохранении отчета: ${e.message}")
+            Log.e("ReportViewModel", "Error saving the report: ${e.message}")
             toastMessage.value = "Ошибка при сохранении отчета: ${e.message}"
         }
     }
@@ -244,17 +240,17 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         val ini: Wini
         val addressArray = createAddressArray(_addressRange.value).toMutableList()
 
-        // Check if the file already exists
+
         if (file.exists()) {
             ini = Wini(file)
         } else {
             ini = Wini()
             ini.file = file
         }
-        val failedAndNotApproved = approvedItems.map { it.device.takeLast(4) } // Оно содержит все подвтержденные их 4 последние числа
-        val remainingAddressArray = addressArray.filterNot { failedAndNotApproved.contains(it.takeLast(4)) }.toMutableList() // Здесь я из всего числа адрессов убираю подтвержденные!
+        val failedAndNotApproved = approvedItems.map { it.device.takeLast(4) }
+        val remainingAddressArray = addressArray.filterNot { failedAndNotApproved.contains(it.takeLast(4)) }.toMutableList()
 
-        // Generate a unique section name based on the current date and time
+
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
         val reportSectionName = "Отчет $timestamp"
         val rangeStart: String? = _addressRange.value?.first?.takeLast(4)
@@ -276,7 +272,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         dataItemsUnchecked.forEach { item ->
             val typeOfDeviceLet = when (typeOfDevice.value) {
                 "Online" -> "D"
-                "Voice" -> "V"
+                "Voice" -> "E"
                 else -> "Unknown"
             }
             val errorDescription = typeOfError[item.interpretation] ?: "Error 1"
@@ -285,7 +281,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
                 rangeStop -> ini.put(reportSectionName, "${typeOfDeviceLet}${_addressRange.value?.second?.take(6)}${itemAddress}", "Devices  on the air : $errorDescription")
                 else -> ini.put(reportSectionName, "Undefined", "Не опознано")
             }
-            // Удаляем адрес из массива адресов, так как он уже обработан
+
             remainingAddressArray.removeIf { it.takeLast(4) == item.device.takeLast(4) }
             Log.e("CheckAddRange","$remainingAddressArray")
         }
@@ -293,7 +289,7 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         remainingAddressArray.forEachIndexed { _, address ->
             val typeOfDeviceLet = when (typeOfDevice.value) {
                 "Online" -> "D"
-                "Voice" -> "V"
+                "Voice" -> "E"
                 else -> "Unknown"
             }
             ini.put(reportSectionName,"${typeOfDeviceLet}${address.take(6)}${address.takeLast(4)}","Failed: Device are not on the air")
@@ -307,16 +303,14 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
         val ini: Wini
         val addressArray = createAddressArray(_addressRange.value).toMutableList()
 
-        // Check if the file already exists
         if (file.exists()) {
             ini = Wini(file)
         } else {
             ini = Wini()
             ini.file = file
         }
-        val failedAndNotApproved = approvedItems.map { it.device.takeLast(4) } // Оно содержит все подвтержденные их 4 последние числа
-        val remainingAddressArray = addressArray.filter { failedAndNotApproved.contains(it.takeLast(4)) }.toMutableList() // Здесь я из всего числа адрессов убираю подтвержденные!
-        // Generate a unique section name based on the current date and time
+        val failedAndNotApproved = approvedItems.map { it.device.takeLast(4) }
+        val remainingAddressArray = addressArray.filter { failedAndNotApproved.contains(it.takeLast(4)) }.toMutableList()
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
         val reportSectionName = "Отчет $timestamp"
 
@@ -328,29 +322,26 @@ class ReportViewModel @Inject constructor(@ApplicationContext private val contex
     }
 
 
-    fun loadTaskFromIni(fileName: String) {
+    private fun loadTaskFromIni(fileName: String) {
         val file = File(tasksDirectory, fileName)
         if (!file.exists()) {
-            Log.e("ReportViewModel", "Файл не найден: $fileName")
+            Log.e("ReportViewModel", "file not found: $fileName")
             return
         }
         val ini = Wini(file)
-        // Пройти по всем секциям в INI файле
         ini.forEach { sectionName, section ->
             var rangeStart: String? = null
             var rangeStop: String? = null
-            // Проверить, начинается ли имя секции с "Task"
             if (sectionName.startsWith("Task")) {
                 type = section["Type"]
                 rangeStart = section["RangeStart"]
                 rangeStop = section["RangeStop"]
-                // Вывести в лог соответствующие значения
                 Log.i("ReportItem", "Type: $type")
                 Log.i("ReportItem", "RangeStart: $rangeStart")
                 Log.i("ReportItem", "RangeStop: $rangeStop")
             }
             if (rangeStart != null && rangeStop != null && type != null) {
-                    Log.i("ReportViewModel", "Новые значения rangeStart и rangeStop не совпадают с текущим значением addressRange")
+                    Log.i("ReportViewModel", "The new RangeStart and rangeStop values do not match the current addressRange value")
                     _addressRange.value = Pair(rangeStart, rangeStop)
                     typeOfDevice.value = type
                     Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
