@@ -61,7 +61,6 @@ class BleControlManager(context: Context) : BleManager(context) {
         controlRequest = null
         controlResponse = null
         connectedDevice = null
-        disconnect().enqueue()
     }
 
     fun getConnectedDevice(): BluetoothDevice? = connectedDevice
@@ -135,7 +134,6 @@ class BleControlManager(context: Context) : BleManager(context) {
         if (defaultResponse.contains("ble.ok")) {
             log(Log.INFO, "DEVICES STARTING TO OFF")
             Logger.i("BleControlManager", "DEVICES STARTING TO OFF")
-
         }
     }
 

@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 private const val TAG = "ScanningService"
-private const val MAX_CONNECTIONS = 4
+private const val MAX_CONNECTIONS = 5
 
 @Suppress("DEPRECATION")
 class ScanningService @Inject constructor(
