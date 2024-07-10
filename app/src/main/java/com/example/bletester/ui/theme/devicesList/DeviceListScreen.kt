@@ -1,4 +1,4 @@
-package com.example.bletester.screens
+package com.example.bletester.ui.theme.devicesList
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
@@ -42,12 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,24 +51,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.example.bletester.permissions.PermissionUtils
-import com.example.bletester.permissions.SystemBroadcastReceiver
-import com.example.bletester.screens.dialogs.CustomProgressBar
-import com.example.bletester.viewModels.ReportViewModel
-import com.example.bletester.viewModels.ScanViewModel
+import com.example.bletester.items.DeviceListItem
+import com.example.bletester.receivers.SystemBroadcastReceiver
+import com.example.bletester.ui.theme.components.CustomProgressBar
+import com.example.bletester.ui.theme.report.ReportViewModel
+import com.example.bletester.utils.PermissionUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
-@SuppressLint("MissingPermission", "MutableCollectionMutableState",
-    "StateFlowValueCalledInComposition"
+@SuppressLint("MissingPermission", "StateFlowValueCalledInComposition",
+    "MutableCollectionMutableState"
 )
 @Composable
 fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
@@ -87,7 +82,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
-    val addressRange by reportViewModel._addressRange.collectAsState(null)
+    val addressRange by reportViewModel.addressRange.collectAsState(null)
     val lifecycleOwner = LocalLifecycleOwner.current
     val globalContext = LocalContext.current.applicationContext
     val toastMessage by scanViewModel.toastMessage.collectAsState()
@@ -96,9 +91,15 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         DeviceListOption.CHECKED_DEVICES to "Проверенные",
         DeviceListOption.UNCHEKED_DEVICES to "Не прошедшие проверку"
     )
-    var startRange by rememberSaveable { mutableLongStateOf(0L) }
-    var endRange by rememberSaveable { mutableLongStateOf(0L) }
 
+    val selectedDeviceType by scanViewModel.selectedDeviceType.collectAsState()
+    val startRange by scanViewModel.startRange.collectAsState()
+    val endRange by scanViewModel.endRange.collectAsState()
+    val isStartRangeValid by scanViewModel.isStartRangeValid.collectAsState()
+    val isEndRangeValid by scanViewModel.isEndRangeValid.collectAsState()
+    val totalDevices by scanViewModel.totalDevices.collectAsState()
+    val scanning by scanViewModel.scanning.collectAsState()
+    val progress by scanViewModel.progress.collectAsState()
 
     DisposableEffect(key1 = lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -118,55 +119,27 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         }
     }
 
-
-
     val deviceTypes = listOf("SatelliteOnline", "SatelliteVoice", "AnotherDevice")
-    var selectedDeviceType by remember { mutableStateOf(deviceTypes[0]) }
     var selectedModeType by remember { mutableStateOf(optionTypeName[0]) }
     var foundedDevice by remember { mutableStateOf(scanViewModel.foundDevices) }
     var checkedDevice by remember { mutableStateOf(scanViewModel.checkedDevices) }
     var uncheckedDevice by remember { mutableStateOf(scanViewModel.unCheckedDevices) }
     var showDropdown by remember { mutableStateOf(false) }
     var showDropdownOption by remember { mutableStateOf(false) }
-    val isStartRangeValid = remember { mutableStateOf(true) }
-    val isEndRangeValid = remember { mutableStateOf(true) }
-    val totalDevices = if (endRange > startRange) {
-        (endRange - startRange + 1).toInt()
-    } else {
-        0
-    }
-    val progress by scanViewModel.progress.collectAsState()
-    val scanning by scanViewModel.scanning.collectAsState()
 
     LaunchedEffect(scanViewModel.foundDevices, scanViewModel.unCheckedDevices, scanViewModel.checkedDevices) {
         foundedDevice = scanViewModel.foundDevices
         checkedDevice = scanViewModel.checkedDevices
         uncheckedDevice = scanViewModel.unCheckedDevices
-
         Log.e("ScanCheck", "Items ${foundedDevice.toList()}")
     }
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
             Toast.makeText(globalContext, it, Toast.LENGTH_SHORT).show()
-            scanViewModel.toastMessage.value = null // Reset the message after showing it
+            scanViewModel.toastMessage.value = null
         }
     }
-
-
-
-    val currentDeviceType by remember {
-        derivedStateOf {
-            // Преобразование типа устройства в соответствующее значение для отчета
-            when (selectedDeviceType) {
-                "SatelliteOnline" -> "D"
-                "SatelliteVoice" -> "E"
-                "AnotherDevice" -> "F"
-                else -> ""
-            }
-        }
-    }
-
 
     LaunchedEffect(addressRange) {
         Log.e("DevicesListScreen", "Trying to change address")
@@ -174,11 +147,11 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
             val newStartRange = start.toLongOrNull() ?: 0L
             val newEndRange = end.toLongOrNull() ?: 0L
             if (newStartRange != startRange || newEndRange != endRange) {
-                startRange = newStartRange
-                endRange = newEndRange
+                scanViewModel.setStartRange(newStartRange.toString())
+                scanViewModel.setEndRange(newEndRange.toString())
                 Log.e("DevicesListScreen", "Changing address 1 and 2")
                 if (startRange != 0L && endRange != 0L) {
-                    //scanViewModel.scanLeDevice(currentLetter, startRange, endRange)
+                    // Логика при изменении диапазона
                 } else {
                     Log.e("DevicesListScreen", "Address is nulls")
                 }
@@ -220,7 +193,12 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         deviceTypes.forEachIndexed { index, text ->
                             DropdownMenuItem(
                                 onClick = {
-                                    selectedDeviceType = deviceTypes[index]
+                                    scanViewModel.updateSelectedDeviceType(when(index) {
+                                        0 -> "D"
+                                        1 -> "E"
+                                        2 -> "F"
+                                        else -> "D"
+                                    })
                                     showDropdown = false
                                 }
                             ) {
@@ -230,18 +208,14 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     }
                 }
             }
-                CustomProgressBar(progress = progress, currentCount = if (totalDevices > 0) checkedDevice.size else 0, totalCount = totalDevices)
+            CustomProgressBar(progress = progress, currentCount = if (totalDevices > 0) checkedDevice.size else 0, totalCount = totalDevices)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 TextField(
                     value = if (startRange == 0L) "" else startRange.toString(),
-                    onValueChange = { newValue ->
-                        val longValue = newValue.toLongOrNull() ?: 0
-                        startRange = longValue
-                        isStartRangeValid.value = newValue.matches(Regex("^\\d{10}$"))
-                                    },
+                    onValueChange = { scanViewModel.setStartRange(it) },
                     label = { Text("Начало диапазона") },
                     modifier = Modifier
                         .weight(1f)
@@ -250,10 +224,10 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         .clip(RoundedCornerShape(8.dp)),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = if (isStartRangeValid.value) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
+                        backgroundColor = if (isStartRangeValid) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
                         cursorColor = Color.Black,
-                        focusedIndicatorColor = if (isStartRangeValid.value) Color(0xFF6200EE) else Color.Red,
-                        unfocusedIndicatorColor = if (isStartRangeValid.value) Color.Gray else Color.Red
+                        focusedIndicatorColor = if (isStartRangeValid) Color(0xFF6200EE) else Color.Red,
+                        unfocusedIndicatorColor = if (isStartRangeValid) Color.Gray else Color.Red
                     )
                 )
 
@@ -261,11 +235,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
                 TextField(
                     value = if (endRange == 0L) "" else endRange.toString(),
-                    onValueChange = { newValue ->
-                        val longValue = newValue.toLongOrNull() ?: 0
-                        endRange = longValue
-                        isEndRangeValid.value = newValue.matches(Regex("^\\d{10}$"))
-                    },
+                    onValueChange = { scanViewModel.setEndRange(it) },
                     label = { Text("Конец диапазона") },
                     modifier = Modifier
                         .weight(1f)
@@ -274,10 +244,10 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         .clip(RoundedCornerShape(8.dp)),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = if (isEndRangeValid.value) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
+                        backgroundColor = if (isEndRangeValid) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
                         cursorColor = Color.Black,
-                        focusedIndicatorColor = if (isEndRangeValid.value) Color(0xFF6200EE) else Color.Red,
-                        unfocusedIndicatorColor = if (isEndRangeValid.value) Color.Gray else Color.Red
+                        focusedIndicatorColor = if (isEndRangeValid) Color(0xFF6200EE) else Color.Red,
+                        unfocusedIndicatorColor = if (isEndRangeValid) Color.Gray else Color.Red
                     )
                 )
             }
@@ -327,11 +297,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             scanViewModel.stopScanning()
                             scanViewModel.updateReportViewModel("Manual")
                         } else {
-                            // Логика при начале сканирования
-                            scanViewModel.scanLeDevice(currentDeviceType,startRange,endRange)
-                            Log.e("ScanList","type of dev $currentDeviceType")
-                            scanViewModel.scanning.value = true
-
+                            scanViewModel.scanLeDevice()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(backgroundColor = if (scanning) Color.Red else Color(0xFF6200EE))
@@ -346,7 +312,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(buttonLabel, color = Color.White)
                 }
-
             }
 
             Surface(
@@ -354,7 +319,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     .fillMaxSize()
                     .padding(16.dp)
                     .border(BorderStroke(1.dp, Color.Gray), shape = RoundedCornerShape(16.dp)),
-                color = Color(0xFFFFFFFF), // Светло-серый фон
+                color = Color(0xFFFFFFFF),
                 shape = RoundedCornerShape(16.dp),
                 shadowElevation = 0.dp
             ) {
@@ -375,38 +340,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-@Composable
-fun DeviceListItem(deviceName: String, deviceAddress: String) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(5.dp)
-            .clickable { expanded = !expanded }
-            .clip(RoundedCornerShape(8.dp)),
-        elevation = 8.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp)
-        ) {
-            Text(
-                text = "Device Name: $deviceName",
-                fontFamily = FontFamily.Serif,
-                fontSize = 14.sp,
-                color = if (expanded) Color.Blue else Color.Black,
-            )
-            if (expanded) {
-                Text(
-                    text = "MAC Address: $deviceAddress",
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                )
             }
         }
     }

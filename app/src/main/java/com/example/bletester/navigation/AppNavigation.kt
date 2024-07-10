@@ -1,6 +1,5 @@
 package com.example.bletester.navigation
 
-import ReportScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -10,22 +9,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.bletester.screens.DeviceListScreen
-import com.example.bletester.screens.LogsScreen
-import com.example.bletester.viewModels.ScanViewModel
+import com.example.bletester.ui.theme.devicesList.DeviceListScreen
+import com.example.bletester.ui.theme.log.LogsScreen
+import com.example.bletester.ui.theme.report.ReportScreen
 
 @Composable
 fun AppNavigation(
     onBluetoothStateChanged:()->Unit
 ){
     val navController =  rememberNavController()
-    val scanViewModel: ScanViewModel = hiltViewModel()
 
     Scaffold(
         bottomBar = {

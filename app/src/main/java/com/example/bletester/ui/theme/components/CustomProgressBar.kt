@@ -1,4 +1,4 @@
-package com.example.bletester.screens.dialogs
+package com.example.bletester.ui.theme.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearOutSlowInEasing

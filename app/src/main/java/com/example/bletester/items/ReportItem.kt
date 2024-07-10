@@ -1,4 +1,4 @@
-package com.example.bletester
+package com.example.bletester.items
 
 import javax.inject.Inject
 

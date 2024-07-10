@@ -1,4 +1,4 @@
-package com.example.bletester
+package com.example.bletester.core
 
 enum class EntireCheck {
     HW_VER,

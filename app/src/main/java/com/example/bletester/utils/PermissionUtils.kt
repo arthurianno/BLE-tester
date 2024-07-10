@@ -1,4 +1,4 @@
-package com.example.bletester.permissions
+package com.example.bletester.utils
 
 import android.Manifest
 import android.annotation.SuppressLint

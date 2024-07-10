@@ -1,5 +1,5 @@
 
-package com.example.bletester.screens.dialogs
+package com.example.bletester.ui.theme.components
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContent

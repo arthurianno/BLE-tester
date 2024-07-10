@@ -1,4 +1,4 @@
-package com.example.bletester
+package com.example.bletester.ui.theme.log
 
 import androidx.compose.ui.graphics.Color
 

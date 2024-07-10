@@ -1,4 +1,4 @@
-package com.example.bletester.screens
+package com.example.bletester.ui.theme.log
 
 import android.bluetooth.BluetoothAdapter
 import androidx.compose.foundation.layout.Box
@@ -29,10 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.bletester.LogItem
-import com.example.bletester.LogLevel
-import com.example.bletester.Logger
-import com.example.bletester.permissions.SystemBroadcastReceiver
+import com.example.bletester.receivers.SystemBroadcastReceiver
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

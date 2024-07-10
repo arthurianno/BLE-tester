@@ -1,4 +1,4 @@
-package com.example.bletester.permissions
+package com.example.bletester.receivers
 
 import android.content.BroadcastReceiver
 import android.content.Context

@@ -1,4 +1,4 @@
-package com.example.bletester
+package com.example.bletester.core
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
@@ -9,8 +9,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.bletester.navigation.AppNavigation
-import com.example.bletester.permissions.SystemBroadcastReceiver
-import com.example.bletester.viewModels.ReportViewModel
+import com.example.bletester.receivers.SystemBroadcastReceiver
+import com.example.bletester.ui.theme.report.ReportViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
