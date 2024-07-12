@@ -23,7 +23,7 @@ class BleControlManager(context: Context) : BleManager(context) {
     private var controlRequest: BluetoothGattCharacteristic? = null
     private var controlResponse: BluetoothGattCharacteristic? = null
     private var connectedDevice: BluetoothDevice? = null
-    private val entireCheckQueue: Queue<EntireCheck> = LinkedList()
+    private val entireCheckQueue: Queue<Pair<BluetoothDevice, EntireCheck>> = LinkedList()
 
     fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent) {
         this.bleCallbackEvent = bleCallbackEvent
@@ -43,19 +43,16 @@ class BleControlManager(context: Context) : BleManager(context) {
         return controlRequest != null && controlResponse != null
     }
 
-
     override fun initialize() {
         super.initialize()
         connectionTime = System.currentTimeMillis()
         Log.i("BleControlManager", "BLE connection initialized")
         setNotificationCallback(controlResponse).with { device: BluetoothDevice, data: Data ->
-            connectedDevice = device
-            handleResponseData(data.value)
+            handleResponseData(device, data.value)
             Log.i("BleControlManager", "BLE callback set!")
         }
         enableNotifications(controlResponse).enqueue()
     }
-
 
     override fun onServicesInvalidated() {
         controlRequest = null
@@ -64,9 +61,10 @@ class BleControlManager(context: Context) : BleManager(context) {
     }
 
     fun getConnectedDevice(): BluetoothDevice? = connectedDevice
-    fun sendCommand(command: String, entireCheck: EntireCheck) {
+
+    fun sendCommand(device: BluetoothDevice, command: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {
-            entireCheckQueue.add(entireCheck)
+            entireCheckQueue.add(Pair(device, entireCheck))
             writeCharacteristic(controlRequest, command.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                 .done {
                     Log.d("BleControlManager", "Command sent: $command")
@@ -80,9 +78,9 @@ class BleControlManager(context: Context) : BleManager(context) {
         }
     }
 
-    fun sendPinCommand(pinCode: String, entireCheck: EntireCheck) {
+    fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {
-            entireCheckQueue.add(entireCheck)
+            entireCheckQueue.add(Pair(device, entireCheck))
             val formattedPinCode = "pin.$pinCode"
             writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                 .done {
@@ -95,14 +93,13 @@ class BleControlManager(context: Context) : BleManager(context) {
         }
     }
 
-
-    private fun handleResponseData(data: ByteArray?) {
-        Log.d("BleControlManager", "Handling response data: ${data?.contentToString()}")
-        val entireCheck = entireCheckQueue.poll() ?: run {
-            Logger.d("BleControlManager", "Entire is null")
+    private fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
+        Log.d("BleControlManager", "Handling response data from device: ${device.address}, data: ${data?.contentToString()}")
+        val entireCheck = entireCheckQueue.poll()?.second ?: run {
+            Logger.d("BleControlManager", "Entire check is null for device: ${device.address}")
             return
         }
-        Log.d("BleControlManager", "Handling response for check: $entireCheck")
+        Log.d("BleControlManager", "Handling response for check: $entireCheck on device: ${device.address}")
         when (entireCheck) {
             EntireCheck.HW_VER -> handleHwVer(data)
             EntireCheck.default_command -> handleDefaultCommand(data)
@@ -143,7 +140,7 @@ class BleControlManager(context: Context) : BleManager(context) {
             Logger.d("BleControlManager", "Pin code is correct")
             Log.i("BleControlManager","callback: $bleCallbackEvent")
             bleCallbackEvent?.onPinCheck("pin.ok")
-        }else if (pinResponse.contains("pin.error")){
+        } else if (pinResponse.contains("pin.error")) {
             bleCallbackEvent?.onPinCheck("pin.error")
         }
     }

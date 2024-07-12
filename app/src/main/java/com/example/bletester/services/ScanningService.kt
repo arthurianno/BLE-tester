@@ -190,7 +190,9 @@ class ScanningService @Inject constructor(
     private fun startConnectionProcess() {
         connectionScope.launch {
             while (isActive && (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0)) {
-                processNextDevice()
+                while (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
+                    processNextDevice()
+                }
                 delay(100) // Short delay to prevent tight loop
             }
             if (foundDevices.isEmpty() && counter == 0) {
@@ -207,7 +209,9 @@ class ScanningService @Inject constructor(
                 val bleControlManager = BleControlManager(context)
                 bleControlManagers[currentDevice.address] = bleControlManager
                 setupBleControlManager(bleControlManager)
-                connectToDevice(currentDevice, bleControlManager)
+                connectionScope.launch {
+                    connectToDevice(currentDevice, bleControlManager)
+                }
             }
         }
     }
@@ -216,10 +220,10 @@ class ScanningService @Inject constructor(
     private suspend fun connectToDevice(device: BluetoothDevice, bleControlManager: BleControlManager) {
         try {
             withTimeout(10000) {
-                bleControlManager.connect(device).retry(5,200)
+                bleControlManager.connect(device).retry(2, 50)
                     .await()
                 Log.d(TAG, "Connected to device ${device.name}")
-                bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
+                bleControlManager.sendPinCommand(device,"master", EntireCheck.PIN_C0DE)
                 foundDevices.remove(device)
                 unCheckedDevices.remove(device)
                 deviceQueueProcessed.add(device)
@@ -239,12 +243,13 @@ class ScanningService @Inject constructor(
 
     private fun setupBleControlManager(bleControlManager: BleControlManager) {
         bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
-            override fun onPinCheck(pin:String) {
-                if(pin.contains("pin.ok")){
+            override fun onPinCheck(pin: String) {
+                if (pin.contains("pin.ok")) {
                     Log.i(TAG, "Pin code is correct")
-                    bleControlManager.sendCommand("serial", EntireCheck.HW_VER)
-                }else if (pin.contains("pin.error")){
-                    Log.e(TAG,"Pin is error")
+                    val device = bleControlManager.getConnectedDevice()
+                    bleControlManager.sendCommand(device!!,"serial", EntireCheck.HW_VER)
+                } else if (pin.contains("pin.error")) {
+                    Log.e(TAG, "Pin is error")
                     val device = bleControlManager.getConnectedDevice()
                     if (device != null) {
                         bannedDevices.add(device)
@@ -252,8 +257,9 @@ class ScanningService @Inject constructor(
                     disconnectAndCleanup(bleControlManager, device)
                 }
             }
+
             override fun onVersionCheck(version: String) {
-                Log.e(TAG,"Version :$version")
+                Log.e(TAG, "Version :$version")
                 val versionPrefix = version.firstOrNull()
                 val versionNumber = version.substring(1).toLongOrNull()
                 val device = bleControlManager.getConnectedDevice()
@@ -271,15 +277,15 @@ class ScanningService @Inject constructor(
                     Log.d(TAG, "Device serial number in range!")
                     checkedDevices.add(device)
                     unCheckedDevices.remove(device)
-                    bleControlManager.sendCommand("ble.off", EntireCheck.default_command)
+                    bleControlManager.sendCommand(device,"ble.off", EntireCheck.default_command)
                     counter--
                     disconnectAndCleanup(bleControlManager, device)
                 } else {
                     Log.d(TAG, "Device serial number out of range. Added to banned list.")
-                    Log.e(TAG,"Device version!: $version")
-                    Log.e(TAG,"range: $startR and $endR")
-                    Log.e(TAG,"letter for prefix: $letter")
-                    Log.e(TAG,"Device version prefix: $versionPrefix")
+                    Log.e(TAG, "Device version!: $version")
+                    Log.e(TAG, "range: $startR and $endR")
+                    Log.e(TAG, "letter for prefix: $letter")
+                    Log.e(TAG, "Device version prefix: $versionPrefix")
                     bannedDevices.add(device)
                     disconnectAndCleanup(bleControlManager, device)
                 }
@@ -299,7 +305,7 @@ class ScanningService @Inject constructor(
     override fun onEvent(event: String) {
         when {
             event.contains("Modify") -> {
-                if (scanning.value){
+                if (scanning.value) {
                     stopScanning()
                     updateReportViewModel("Auto")
                 }
@@ -313,7 +319,7 @@ class ScanningService @Inject constructor(
             event.contains("Auto") -> {
                 letter = deviceTypeToLetter[sharedData.typeOfDevice.value.toString()].toString()
                 deviceTypeLetter.value = letter
-                Log.e("ScanViewModelEvent","letter is: $letter")
+                Log.e("ScanViewModelEvent", "letter is: $letter")
                 sharedData.addressRange.value?.let { range ->
                     val start = range.first.toLongOrNull()
                     val end = range.second.toLongOrNull()
