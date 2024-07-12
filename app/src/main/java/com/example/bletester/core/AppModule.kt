@@ -3,14 +3,14 @@ package com.example.bletester.core
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import com.example.bletester.ui.theme.log.Logger
-import com.example.bletester.services.ScanningService
 import com.example.bletester.ble.BleControlManager
-import com.example.bletester.utils.SharedData
+import com.example.bletester.services.ScanningService
 import com.example.bletester.ui.theme.devicesList.ScanViewModel
+import com.example.bletester.ui.theme.log.Logger
 import com.example.bletester.ui.theme.report.ReportViewModel
 import com.example.bletester.utils.FileObserver
 import com.example.bletester.utils.IniUtil
+import com.example.bletester.utils.SharedData
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

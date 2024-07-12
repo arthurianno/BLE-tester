@@ -8,8 +8,6 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import com.example.bletester.ble.BleCallbackEvent
@@ -22,8 +20,13 @@ import com.example.bletester.utils.FileModifyEvent
 import com.example.bletester.utils.SharedData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.util.LinkedList
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -75,6 +78,7 @@ class ScanningService @Inject constructor(
     )
 
     private val bleControlManagers = mutableMapOf<String, BleControlManager>()
+    private val connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     init {
         reportViewModel.registerCallback(this)
@@ -84,7 +88,7 @@ class ScanningService @Inject constructor(
 
     private fun buildSettings() =
         ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
             .build()
 
     private fun buildFilter() =
@@ -92,6 +96,7 @@ class ScanningService @Inject constructor(
             ScanFilter.Builder()
                 .build()
         )
+
     @SuppressLint("MissingPermission")
     fun scanLeDevice(letter: String, start: Long, end: Long) {
         Logger.i(TAG, "Scanning started for device type: $letter, range: $start - $end")
@@ -120,6 +125,7 @@ class ScanningService @Inject constructor(
                 ?: Log.e(TAG, "BluetoothLeScanner is null")
             Log.i(TAG, "Scanning started")
             Logger.i(TAG, "Scanning started")
+            startConnectionProcess()
         } else {
             Log.w(TAG, "Scanning is already in progress")
         }
@@ -136,6 +142,7 @@ class ScanningService @Inject constructor(
         isFirstConnect = true
         Log.i(TAG, "Stopping scan")
         bluetoothLeScanner?.stopScan(leScanCallback())
+        connectionScope.cancel()
         CoroutineScope(Dispatchers.IO).launch {
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
@@ -171,86 +178,62 @@ class ScanningService @Inject constructor(
                     device.address !in checkedDevices.map { it.address }) {
                     deviceQueue.add(device)
                     foundDevices.add(device)
-                    if (bleControlManagers.size < MAX_CONNECTIONS) {
-                        connectionToAnotherDevice()
-                    }
                 }
             }
         }
-
     }
 
     fun updateReportViewModel(command: String) {
         deviceProcessor.updateReportViewModel(command, unCheckedDevices, checkedDevices, scanning.value)
     }
 
-    @SuppressLint("MissingPermission")
-    fun connectionToAnotherDevice() {
-        Log.d(TAG, "Attempting to connect to another device. Counter: $counter")
-        when {
-            deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0 -> {
-                if (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
-                    val currentDevice = deviceQueue.remove()
-                    if (currentDevice.address !in bannedDevices.map { it.address }) {
-                        val bleControlManager = BleControlManager(context)
-                        bleControlManagers[currentDevice.address] = bleControlManager
-                        Logger.d(
-                            TAG,
-                            "Attempting to connect to device: ${currentDevice.name} (${currentDevice.address})"
-                        )
-                        setupBleControlManager(bleControlManager)
+    private fun startConnectionProcess() {
+        connectionScope.launch {
+            while (isActive && (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0)) {
+                processNextDevice()
+                delay(100) // Short delay to prevent tight loop
+            }
+            if (foundDevices.isEmpty() && counter == 0) {
+                stopScanning()
+                updateReportViewModel("Auto")
+            }
+        }
+    }
 
-                        CoroutineScope(Dispatchers.IO).launch {
-                            try {
-                                bleControlManager.connect(currentDevice)
-                                    .done { device ->
-                                        Log.d(TAG, "Connected to device ${device.name}")
-                                        bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
-                                        foundDevices.remove(device)
-                                        unCheckedDevices.remove(device)
-                                        deviceQueueProcessed.add(device)
-                                    }
-                                    .fail { device, status ->
-                                        Log.e(TAG, "Failed to connect to device ${device.name}: $status")
-                                        errorMessage = "Failed to connect: $status"
-                                        foundDevices.remove(device)
-                                        if (!stopRequested && device.address !in checkedDevices.map { it.address }) {
-                                            if (!unCheckedDevices.contains(device))
-                                                unCheckedDevices.add(device)
-                                            deviceQueue.add(device)
-                                        }
-                                        bleControlManagers.remove(device.address)
-                                        bleControlManager.close()
-                                        connectionToAnotherDevice()
-                                    }
-                                    .enqueue()
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error during connection attempt: ${e.message}")
-                            }
-                        }
-                    } else {
-                        connectionToAnotherDevice()
-                    }
-                } else if (bleControlManagers.size >= MAX_CONNECTIONS) {
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        connectionToAnotherDevice()
-                    }, 500)
-                }
+    private suspend fun processNextDevice() {
+        if (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
+            val currentDevice = deviceQueue.poll() ?: return
+            if (currentDevice.address !in bannedDevices.map { it.address }) {
+                val bleControlManager = BleControlManager(context)
+                bleControlManagers[currentDevice.address] = bleControlManager
+                setupBleControlManager(bleControlManager)
+                connectToDevice(currentDevice, bleControlManager)
             }
-            else -> {
-                if (foundDevices.isEmpty() && counter == 0) {
-                    Log.i(TAG, "All devices processed")
-                    Logger.i(TAG, "All devices processed. Stopping scan and updating report.")
-                    stopScanning()
-                    updateReportViewModel("Auto")
-                } else {
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (scanning.value) {
-                            connectionToAnotherDevice()
-                        }
-                    }, 500)
-                }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun connectToDevice(device: BluetoothDevice, bleControlManager: BleControlManager) {
+        try {
+            withTimeout(10000) {
+                bleControlManager.connect(device).retry(5,200)
+                    .await()
+                Log.d(TAG, "Connected to device ${device.name}")
+                bleControlManager.sendPinCommand("master", EntireCheck.PIN_C0DE)
+                foundDevices.remove(device)
+                unCheckedDevices.remove(device)
+                deviceQueueProcessed.add(device)
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to connect to device ${device.name}: ${e.message}")
+            foundDevices.remove(device)
+            if (!stopRequested && device.address !in checkedDevices.map { it.address }) {
+                if (!unCheckedDevices.contains(device))
+                    unCheckedDevices.add(device)
+                deviceQueue.add(device)
+            }
+            bleControlManagers.remove(device.address)
+            bleControlManager.close()
         }
     }
 
@@ -268,10 +251,8 @@ class ScanningService @Inject constructor(
                     }
                     disconnectAndCleanup(bleControlManager, device)
                 }
-
             }
             override fun onVersionCheck(version: String) {
-
                 Log.e(TAG,"Version :$version")
                 val versionPrefix = version.firstOrNull()
                 val versionNumber = version.substring(1).toLongOrNull()
@@ -307,13 +288,11 @@ class ScanningService @Inject constructor(
     }
 
     private fun disconnectAndCleanup(bleControlManager: BleControlManager, device: BluetoothDevice?) {
-        CoroutineScope(Dispatchers.IO).launch {
-            bleControlManager.disconnect().done {
-                bleControlManager.close()
-                device?.let { bleControlManagers.remove(it.address) }
-                deviceProcessor.setErrorMessage(null)
-                connectionToAnotherDevice()
-            }.enqueue()
+        connectionScope.launch {
+            bleControlManager.disconnect().await()
+            bleControlManager.close()
+            device?.let { bleControlManagers.remove(it.address) }
+            deviceProcessor.setErrorMessage(null)
         }
     }
 
