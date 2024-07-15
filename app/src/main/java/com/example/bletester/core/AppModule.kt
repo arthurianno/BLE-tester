@@ -30,7 +30,6 @@ object AppModule {
     }
 
     @Provides
-    @Singleton
     fun provideBleControlManager(@ApplicationContext context: Context): BleControlManager {
         return BleControlManager(context)
     }

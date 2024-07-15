@@ -63,7 +63,7 @@ fun LogsScreen(onBluetoothStateChanged: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
         LazyColumn {
-            itemsIndexed(items = logs, key = { _, log -> log.message }) { _, log ->
+            itemsIndexed(items = logs, key = { _, log -> log.id }) { _, log ->
                 LogItemView(log)
             }
         }

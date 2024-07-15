@@ -10,7 +10,7 @@ enum class LogLevel(val color: Color) {
 }
 
 // Класс для представления одного лога
-data class LogItem(val tag: String, val message: String, val level: LogLevel)
+data class LogItem(val tag: String, val message: String, val level: LogLevel, val id:Long)
 
 // Объект-логгер для примера
 object Logger {
@@ -18,15 +18,15 @@ object Logger {
     private val listeners = mutableListOf<(List<LogItem>) -> Unit>()
 
     fun e(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Error))
+        addLog(LogItem(tag, message, LogLevel.Error,1))
     }
 
     fun d(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Debug))
+        addLog(LogItem(tag, message, LogLevel.Debug,2))
     }
 
     fun i(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Info))
+        addLog(LogItem(tag, message, LogLevel.Info,3))
     }
 
     fun getLogs(): List<LogItem> {

@@ -244,50 +244,60 @@ class ScanningService @Inject constructor(
     private fun setupBleControlManager(bleControlManager: BleControlManager) {
         bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
             override fun onPinCheck(pin: String) {
-                if (pin.contains("pin.ok")) {
-                    Log.i(TAG, "Pin code is correct")
-                    val device = bleControlManager.getConnectedDevice()
-                    bleControlManager.sendCommand(device!!,"serial", EntireCheck.HW_VER)
-                } else if (pin.contains("pin.error")) {
-                    Log.e(TAG, "Pin is error")
-                    val device = bleControlManager.getConnectedDevice()
-                    if (device != null) {
-                        bannedDevices.add(device)
+                connectionScope.launch {
+                    if (pin.contains("pin.ok")) {
+                        Log.i(TAG, "Pin code is correct")
+                        val device = bleControlManager.getConnectedDevice()
+                        bleControlManager.sendCommand(device!!,"serial", EntireCheck.HW_VER)
+                    } else if (pin.contains("pin.error")) {
+                        Log.e(TAG, "Pin is error")
+                        val device = bleControlManager.getConnectedDevice()
+                        if (device != null) {
+                            bannedDevices.add(device)
+                        }
+                        disconnectAndCleanup(bleControlManager, device)
                     }
-                    disconnectAndCleanup(bleControlManager, device)
                 }
             }
 
             override fun onVersionCheck(version: String) {
                 Log.e(TAG, "Version :$version")
-                val versionPrefix = version.firstOrNull()
-                val versionNumber = version.substring(1).toLongOrNull()
-                val device = bleControlManager.getConnectedDevice()
+                connectionScope.launch {
+                    val versionPrefix = version.firstOrNull()
+                    val versionNumber = version.substring(1).toLongOrNull()
+                    val device = bleControlManager.getConnectedDevice()
 
-                if (versionPrefix == null || versionNumber == null || device == null) {
-                    Log.e(TAG, "Invalid version format or no connected device")
-                    disconnectAndCleanup(bleControlManager, device)
-                    return
-                }
-                Logger.i(TAG, "Device version check: $version for device ${device.address}")
+                    if (versionPrefix == null || versionNumber == null || device == null) {
+                        Log.e(TAG, "Invalid version format or no connected device")
+                        disconnectAndCleanup(bleControlManager, device)
+                        return@launch
+                    }
+                    Logger.i(TAG, "Device version check: $version for device ${device.address}")
 
-                Log.d(TAG, "Version received: $version")
+                    Log.d(TAG, "Version received: $version")
 
-                if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
-                    Log.d(TAG, "Device serial number in range!")
-                    checkedDevices.add(device)
-                    unCheckedDevices.remove(device)
-                    bleControlManager.sendCommand(device,"ble.off", EntireCheck.default_command)
-                    counter--
-                    disconnectAndCleanup(bleControlManager, device)
-                } else {
-                    Log.d(TAG, "Device serial number out of range. Added to banned list.")
-                    Log.e(TAG, "Device version!: $version")
-                    Log.e(TAG, "range: $startR and $endR")
-                    Log.e(TAG, "letter for prefix: $letter")
-                    Log.e(TAG, "Device version prefix: $versionPrefix")
-                    bannedDevices.add(device)
-                    disconnectAndCleanup(bleControlManager, device)
+                    if (versionNumber in startR..endR && versionPrefix.toString()
+                            .contains(letter)
+                    ) {
+                        Log.d(TAG, "Device serial number in range!")
+                        checkedDevices.add(device)
+                        unCheckedDevices.remove(device)
+                        bleControlManager.sendCommand(
+                            device,
+                            "ble.off",
+                            EntireCheck.default_command
+                        )
+                        counter--
+                        disconnectAndCleanup(bleControlManager, device)
+                    } else {
+                        Log.d(TAG, "Device serial number out of range. Added to banned list.")
+                        Log.e(TAG, "Device version!: $version")
+                        Log.e(TAG, "range: $startR and $endR")
+                        Log.e(TAG, "letter for prefix: $letter")
+                        Log.e(TAG, "Device version prefix: $versionPrefix")
+                        bannedDevices.add(device)
+                        disconnectAndCleanup(bleControlManager, device)
+                    }
                 }
             }
         })
@@ -296,6 +306,7 @@ class ScanningService @Inject constructor(
     private fun disconnectAndCleanup(bleControlManager: BleControlManager, device: BluetoothDevice?) {
         connectionScope.launch {
             bleControlManager.disconnect().await()
+            bleControlManager.cleanup()
             bleControlManager.close()
             device?.let { bleControlManagers.remove(it.address) }
             deviceProcessor.setErrorMessage(null)
