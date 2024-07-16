@@ -48,7 +48,9 @@ class FileObserver @Inject constructor(
     }
 
     private fun checkForFileChanges() {
-        val currentFiles = sharedData.tasksDirectory.listFiles()?.associate { it.name to it.lastModified() } ?: emptyMap()
+        val currentFiles = sharedData.bleTesterDirectory.listFiles { file ->
+            file.isFile && file.name.matches(Regex("\\d{8}\\.ini"))
+        }?.associate { it.name to it.lastModified() } ?: emptyMap()
 
         currentFiles.keys.minus(checkedFiles.keys).forEach { newFileName ->
             handleNewFile(newFileName)
@@ -69,8 +71,8 @@ class FileObserver @Inject constructor(
 
     private fun handleNewFile(fileName: String) {
         try {
-            val file = File(sharedData.tasksDirectory, fileName)
-            if (file.isFile) {
+            val file = File(sharedData.bleTesterDirectory, fileName)
+            if (file.isFile && file.name.matches(Regex("\\d{8}\\.ini"))) {
                 counter.value++
                 onFileAdded?.invoke(fileName)
             }

@@ -11,11 +11,10 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-class IniUtil @Inject constructor( sharedData: SharedData){
+class IniUtil @Inject constructor( private val sharedData: SharedData){
 
     private val _addressRange = sharedData.addressRange
     private val typeOfDevice = sharedData.typeOfDevice
-    private val tasksDirectory = sharedData.tasksDirectory
     private var type: String? = null
     private val typeOfError = mapOf(
         "Error 19" to "The device turned off intentionally",
@@ -99,8 +98,8 @@ class IniUtil @Inject constructor( sharedData: SharedData){
         ini.store()
     }
 
-     fun loadTaskFromIni(fileName: String) {
-        val file = File(tasksDirectory, fileName)
+    fun loadTaskFromIni(fileName: String) {
+        val file = File(sharedData.bleTesterDirectory, fileName)
         if (!file.exists()) {
             Log.e("ReportViewModel", "file not found: $fileName")
             return
@@ -122,7 +121,6 @@ class IniUtil @Inject constructor( sharedData: SharedData){
                 _addressRange.value = Pair(rangeStart, rangeStop)
                 typeOfDevice.value = type
                 Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}")
-
             }
         }
     }

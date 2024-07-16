@@ -10,8 +10,6 @@ class SharedData {
     val typeOfDevice = MutableStateFlow<String?>(null)
     var approvedItems: List<ReportItem> = emptyList()
     var notApprovedItems: List<ReportItem> = emptyList()
-    private val downloadDirectory: File = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    val bleTesterDirectory = File(downloadDirectory, "BLE Tester Directory")
-    val reportsDirectory = File(bleTesterDirectory, "Reports")
-    val tasksDirectory = File(bleTesterDirectory, "Tasks")
+    private val externalStorageDirectory: File = Environment.getExternalStorageDirectory()
+    val bleTesterDirectory = File(externalStorageDirectory, "BLE Tester Directory")
 }
