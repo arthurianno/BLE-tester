@@ -17,9 +17,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.data.Data
-import java.util.LinkedList
-import java.util.Queue
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 class BleControlManager @Inject constructor(context: Context) : BleManager(context) {
@@ -30,7 +29,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     private var controlRequest: BluetoothGattCharacteristic? = null
     private var controlResponse: BluetoothGattCharacteristic? = null
     private var connectedDevice: BluetoothDevice? = null
-    private val entireCheckQueue: Queue<Pair<BluetoothDevice, EntireCheck>> = LinkedList()
+    private val entireCheckQueue = ConcurrentLinkedQueue<Pair<BluetoothDevice, EntireCheck>>()
     private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
 

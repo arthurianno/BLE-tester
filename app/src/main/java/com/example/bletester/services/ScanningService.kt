@@ -54,7 +54,6 @@ class ScanningService @Inject constructor(
     private val settings: ScanSettings
     private val filters: List<ScanFilter>
     var scanning = MutableStateFlow(false)
-    private var errorMessage: String? = null
     private var stopRequested = false
     private var startR: Long = 0L
     private var endR: Long = 0L
@@ -143,7 +142,7 @@ class ScanningService @Inject constructor(
         Log.i(TAG, "Stopping scan")
         bluetoothLeScanner?.stopScan(leScanCallback())
         connectionScope.cancel()
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.Default).launch {
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
             deviceQueue.clear()
@@ -151,6 +150,7 @@ class ScanningService @Inject constructor(
             bleControlManagers.clear()
             Log.d(TAG, "Scan stopped and device queue cleared")
         }
+        connectionScope.cancel()
     }
 
     @SuppressLint("MissingPermission")
