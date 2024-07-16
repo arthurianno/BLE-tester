@@ -14,7 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.data.Data
 import java.util.UUID
@@ -104,32 +103,27 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
     }
 
-    private suspend fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
-        withContext(Dispatchers.Default) {
-            Log.d("BleControlManager", "Handling response data from device: ${device.address}, data: ${data?.contentToString()}")
-            val entireCheck = entireCheckQueue.poll()?.second ?: run {
-                Logger.d("BleControlManager", "Entire check is null for device: ${device.address}")
-                return@withContext
-            }
-            Log.d("BleControlManager", "Handling response for check: $entireCheck on device: ${device.address}")
-            when (entireCheck) {
-                EntireCheck.HW_VER -> handleHwVer(data)
-                EntireCheck.default_command -> handleDefaultCommand(data)
-                EntireCheck.PIN_C0DE -> handlePinCodeResult(data)
-            }
+    private  fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
+        Log.d("BleControlManager", "Handling response data from device: ${device.address}, data: ${data?.contentToString()}")
+        val entireCheck = entireCheckQueue.poll()?.second ?: run {
+            Logger.d("BleControlManager", "Entire check is null for device: ${device.address}")
+            return
+        }
+        Log.d("BleControlManager", "Handling response for check: $entireCheck on device: ${device.address}")
+        when (entireCheck) {
+            EntireCheck.HW_VER -> handleHwVer(data)
+            EntireCheck.default_command -> handleDefaultCommand(data)
+            EntireCheck.PIN_C0DE -> handlePinCodeResult(data)
         }
     }
 
-    private suspend fun handleHwVer(data: ByteArray?) {
-        withContext(Dispatchers.Default) {
-            Log.d("BleControlManager", "Handling HW version: ${data?.contentToString()}")
-            if (data == null || data.size < 4) {
-                Logger.e("BleControlManager", "Received invalid HW version data")
-                return@withContext
-            }
+    private  fun handleHwVer(data: ByteArray?) {
+        Log.d("BleControlManager", "Handling HW version: ${data?.contentToString()}")
+        if (data == null || data.size < 4) {
+            Logger.e("BleControlManager", "Received invalid HW version data")
+            return
         }
-
-        val endIndex = minOf(20, data!!.size)
+        val endIndex = minOf(20, data.size)
         val hwVer = String(data.copyOfRange(4, endIndex)).trim().replace("[\\x00-\\x1F]".toRegex(), "")
         Log.e("BleControlManager","version is :$hwVer")
         serialNumber = hwVer
@@ -140,29 +134,25 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     }
 
     @SuppressLint("SuspiciousIndentation")
-    private suspend fun handleDefaultCommand(data: ByteArray?) {
-        withContext(Dispatchers.Default) {
-            val defaultResponse = data?.toString(Charsets.UTF_8) ?: return@withContext
-            log(Log.DEBUG, "command $defaultResponse")
-            if (defaultResponse.contains("ble.ok")) {
-                log(Log.INFO, "DEVICES STARTING TO OFF")
-                Logger.i("BleControlManager", "DEVICES STARTING TO OFF")
-            }
+    private fun handleDefaultCommand(data: ByteArray?) {
+        val defaultResponse = data?.toString(Charsets.UTF_8) ?: return
+        log(Log.DEBUG, "command $defaultResponse")
+        if (defaultResponse.contains("ble.ok")) {
+            log(Log.INFO, "DEVICES STARTING TO OFF")
+            Logger.i("BleControlManager", "DEVICES STARTING TO OFF")
         }
     }
 
-    private suspend fun handlePinCodeResult(data: ByteArray?) {
-        withContext(Dispatchers.Default) {
-            val pinResponse = data?.toString(Charsets.UTF_8) ?: return@withContext
-            if (pinResponse.contains("pin.ok")) {
-                Logger.d("BleControlManager", "Pin code is correct")
-                Log.i("BleControlManager", "callback: $bleCallbackEvent")
-                bleCallbackEvent?.onPinCheck("pin.ok")
-            } else if (pinResponse.contains("pin.error")) {
-                bleCallbackEvent?.onPinCheck("pin.error")
-            }
+    private  fun handlePinCodeResult(data: ByteArray?) {
+        val pinResponse = data?.toString(Charsets.UTF_8) ?: return
+        if (pinResponse.contains("pin.ok")) {
+            Logger.d("BleControlManager", "Pin code is correct")
+            Log.i("BleControlManager", "callback: $bleCallbackEvent")
+            bleCallbackEvent?.onPinCheck("pin.ok")
+        } else if (pinResponse.contains("pin.error")) {
+            bleCallbackEvent?.onPinCheck("pin.error")
         }
-    }
+        }
 
     fun cleanup() {
         coroutineScope.cancel()
