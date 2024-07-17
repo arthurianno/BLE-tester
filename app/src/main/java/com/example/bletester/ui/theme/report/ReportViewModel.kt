@@ -76,17 +76,26 @@ class ReportViewModel @Inject constructor(
 
     private fun initializeFileObserver() {
         fileObserver.setCallbacks(
-            onFileAdded = { fileName -> handleNewFile(fileName) },
-            onFileDeleted = { fileName -> handleFileDeleted(fileName) },
-            onFileModified = { fileName -> handleFileModify(fileName) }
+            onFileAdded = { fileName ->
+                Log.d("ReportViewModel", "File added callback: $fileName")
+                handleNewFile(fileName)
+            },
+            onFileDeleted = { fileName ->
+                Log.d("ReportViewModel", "File deleted callback: $fileName")
+                handleFileDeleted(fileName)
+            },
+            onFileModified = { fileName ->
+                Log.d("ReportViewModel", "File modified callback: $fileName")
+                handleFileModify(fileName)
+            }
         )
         fileObserver.startObserving()
     }
 
     private fun handleNewFile(fileName: String) {
         try {
+            Log.d("ReportViewModel", "Handling new file: $fileName")
             notifyNewFile(fileName)
-            Log.d("ReportViewModel", "New file detected: $fileName")
             callbackFileModifyEvent?.onEvent("Auto")
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error processing new file: ${e.message}")
@@ -103,7 +112,7 @@ class ReportViewModel @Inject constructor(
     }
 
     private fun handleFileModify(fileName: String) {
-        Log.i("ReportViewModel", fileName)
+        Log.i("ReportViewModel", "File modified: $fileName")
         callbackFileModifyEvent?.onEvent("Modify")
     }
 

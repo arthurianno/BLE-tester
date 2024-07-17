@@ -5,10 +5,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 class FileObserver @Inject constructor(
@@ -16,8 +14,7 @@ class FileObserver @Inject constructor(
 ) {
     private var observerJob: Job? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    private var checkedFiles = mutableMapOf<String, Long>()
-    private val counter = MutableStateFlow(0)
+    private var lastModifiedTimes = mutableMapOf<String, Long>()
 
     private var onFileAdded: ((String) -> Unit)? = null
     private var onFileDeleted: ((String) -> Unit)? = null
@@ -49,48 +46,26 @@ class FileObserver @Inject constructor(
 
     private fun checkForFileChanges() {
         val currentFiles = sharedData.bleTesterDirectory.listFiles { file ->
-            file.isFile && file.name.matches(Regex("Task.ini"))
+            file.isFile && file.name.startsWith("Task")
         }?.associate { it.name to it.lastModified() } ?: emptyMap()
 
-        currentFiles.keys.minus(checkedFiles.keys).forEach { newFileName ->
-            handleNewFile(newFileName)
-        }
-
-        checkedFiles.keys.minus(currentFiles.keys).forEach { deletedFileName ->
-            handleFileDeleted(deletedFileName)
-        }
-
+        // Check for new or modified files
         currentFiles.forEach { (fileName, lastModified) ->
-            if (checkedFiles.containsKey(fileName) && lastModified > checkedFiles[fileName]!!) {
-                handleFileModify(fileName)
-            }
-        }
-
-        checkedFiles = currentFiles.toMutableMap()
-    }
-
-    private fun handleNewFile(fileName: String) {
-        try {
-            val file = File(sharedData.bleTesterDirectory, fileName)
-            if (file.isFile && file.name.matches(Regex("\\d{8}\\.ini"))) {
-                counter.value++
+            if (!lastModifiedTimes.containsKey(fileName)) {
+                Log.d("FileObserver", "New file detected: $fileName")
                 onFileAdded?.invoke(fileName)
+            } else if (lastModified > lastModifiedTimes[fileName]!!) {
+                Log.d("FileObserver", "File modified: $fileName")
+                onFileModified?.invoke(fileName)
             }
-        } catch (e: Exception) {
-            Log.e("FileObserver", "Error processing new file: ${e.message}")
         }
-    }
 
-    private fun handleFileDeleted(fileName: String) {
-        try {
-            counter.value--
-            onFileDeleted?.invoke(fileName)
-        } catch (e: Exception) {
-            Log.e("FileObserver", "Error processing deleted file: ${e.message}")
+        // Check for deleted files
+        lastModifiedTimes.keys.minus(currentFiles.keys).forEach { deletedFileName ->
+            Log.d("FileObserver", "File deleted: $deletedFileName")
+            onFileDeleted?.invoke(deletedFileName)
         }
-    }
 
-    private fun handleFileModify(fileName: String) {
-        onFileModified?.invoke(fileName)
+        lastModifiedTimes = currentFiles.toMutableMap()
     }
 }
