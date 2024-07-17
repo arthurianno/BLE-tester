@@ -49,7 +49,7 @@ class FileObserver @Inject constructor(
 
     private fun checkForFileChanges() {
         val currentFiles = sharedData.bleTesterDirectory.listFiles { file ->
-            file.isFile && file.name.matches(Regex("\\d{8}\\.ini"))
+            file.isFile && file.name.matches(Regex("Task.ini"))
         }?.associate { it.name to it.lastModified() } ?: emptyMap()
 
         currentFiles.keys.minus(checkedFiles.keys).forEach { newFileName ->

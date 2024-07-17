@@ -30,6 +30,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     private var connectedDevice: BluetoothDevice? = null
     private val entireCheckQueue = ConcurrentLinkedQueue<Pair<BluetoothDevice, EntireCheck>>()
     private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var pinAttempts = 0
 
 
     fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent) {
@@ -94,12 +95,25 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
             val formattedPinCode = "pin.$pinCode"
             writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                 .done {
-                    Log.i("BleControlManager", "PIN command sent")
+                    Log.i("BleControlManager", "PIN command sent: $formattedPinCode")
+                    pinAttempts = 0  // Сбросить счетчик попыток при успешной отправке
                 }
                 .fail { _, _ ->
-                    Log.e("BleControlManager", "PIN command incorrect")
+                    Log.e("BleControlManager", "PIN command failed to send")
+                    pinAttempts++
+                    if (pinAttempts == 1) {
+                        Log.i("BleControlManager", "Retrying PIN command once")
+                        sendPinCommand(device, pinCode, entireCheck)
+                    } else {
+                        Log.e("BleControlManager", "PIN command failed after retry")
+                        bleCallbackEvent?.onPinCheck("pin.error")
+                        pinAttempts = 0  // Сбросить счетчик для будущих попыток
+                    }
                 }
                 .enqueue()
+        } else {
+            Log.e("BleControlManager", "Device is not connected or controlRequest is null")
+            bleCallbackEvent?.onPinCheck("pin.error")
         }
     }
 

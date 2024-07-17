@@ -83,9 +83,10 @@ object AppModule {
         @ApplicationContext context: Context,
         reportViewModel: ReportViewModel,
         deviceProcessor: DeviceProcessor,
-        sharedData: SharedData
+        sharedData: SharedData,
+        iniUtil: IniUtil
     ): ScanningService {
-        return ScanningService(context,reportViewModel,deviceProcessor,sharedData)
+        return ScanningService(context,reportViewModel,deviceProcessor,sharedData,iniUtil)
     }
 
     @Provides

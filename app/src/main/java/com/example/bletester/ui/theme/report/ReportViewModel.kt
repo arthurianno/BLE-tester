@@ -30,9 +30,12 @@ class ReportViewModel @Inject constructor(
     val reportItems = MutableStateFlow<List<ReportItem>>(emptyList())
     private val bleTesterDirectory = sharedData.bleTesterDirectory
     private var callbackFileModifyEvent: FileModifyEvent? = null
+    private val reportDirectory = sharedData.reportDirectory
+
 
     init {
         createBleTesterDirectory()
+        createReportDirectory()
         initializeFileObserver()
         checkDirectoryPermissions()
         Log.d("ReportViewModel", "ViewModel initialized, file observation should be active")
@@ -59,6 +62,15 @@ class ReportViewModel @Inject constructor(
             Log.i("ReportViewModel", "Folder BLE Tester Directory created: ${bleTesterDirectory.absolutePath}")
         } else {
             Log.i("ReportViewModel", "Folder BLE Tester Directory exists: ${bleTesterDirectory.absolutePath}")
+        }
+    }
+
+    private fun createReportDirectory() {
+        if (!reportDirectory.exists()) {
+            reportDirectory.mkdirs()
+            Log.i("ReportViewModel", "Folder REPORT created: ${reportDirectory.absolutePath}")
+        } else {
+            Log.i("ReportViewModel", "Folder REPORT exists: ${reportDirectory.absolutePath}")
         }
     }
 
@@ -127,28 +139,21 @@ class ReportViewModel @Inject constructor(
     private fun saveReport(reportItemsNotApproved: List<ReportItem>, reportItemsApproved: List<ReportItem>) {
         try {
             createBleTesterDirectory()
+            createReportDirectory()
 
             val dateFormat = SimpleDateFormat("ddMMyyyy", Locale.getDefault())
             val currentDate = dateFormat.format(Date())
 
+            val additionalReportFile = File(reportDirectory, "report-$currentDate.ini")
 
-            val summaryReportFile = File(bleTesterDirectory, "report_summary.ini")
-            val additionalReportFile = File(bleTesterDirectory, "report-$currentDate.ini")
-
-
-            if (!summaryReportFile.exists()) {
-                summaryReportFile.createNewFile()
-            }
             if (!additionalReportFile.exists()) {
                 additionalReportFile.createNewFile()
             }
 
             if (reportItemsNotApproved.isNotEmpty() || reportItemsApproved.isNotEmpty()) {
-                iniUtil.saveIniFileSummary(summaryReportFile.absolutePath, reportItemsApproved)
                 iniUtil.saveIniFile(additionalReportFile.absolutePath, reportItemsNotApproved, reportItemsApproved)
 
                 Log.i("ReportViewModel", "Reports have been successfully saved locally: " +
-                        "${summaryReportFile.absolutePath}, " +
                         additionalReportFile.absolutePath
                 )
                 toastMessage.value = "Отчеты успешно сохранены локально"

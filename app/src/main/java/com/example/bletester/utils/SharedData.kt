@@ -12,4 +12,5 @@ class SharedData {
     var notApprovedItems: List<ReportItem> = emptyList()
     private val externalStorageDirectory: File = Environment.getExternalStorageDirectory()
     val bleTesterDirectory = File(externalStorageDirectory, "BLE Tester Directory")
+     val reportDirectory = File(bleTesterDirectory, "REPORT")
 }

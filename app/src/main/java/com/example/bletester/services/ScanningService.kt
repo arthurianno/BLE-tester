@@ -17,6 +17,7 @@ import com.example.bletester.core.EntireCheck
 import com.example.bletester.ui.theme.log.Logger
 import com.example.bletester.ui.theme.report.ReportViewModel
 import com.example.bletester.utils.FileModifyEvent
+import com.example.bletester.utils.IniUtil
 import com.example.bletester.utils.SharedData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,14 +34,15 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 private const val TAG = "ScanningService"
-private const val MAX_CONNECTIONS = 5
+private const val MAX_CONNECTIONS = 3
 
 @Suppress("DEPRECATION")
 class ScanningService @Inject constructor(
     private val context: Context,
     reportViewModel: ReportViewModel,
     private val deviceProcessor: DeviceProcessor,
-    private val sharedData: SharedData
+    private val sharedData: SharedData,
+    private val iniUtil: IniUtil
 ) : FileModifyEvent {
 
     val toastMessage = MutableStateFlow<String?>(null)
@@ -57,12 +59,10 @@ class ScanningService @Inject constructor(
     private var stopRequested = false
     private var startR: Long = 0L
     private var endR: Long = 0L
-    private var diffRanges: Int? = 0
     private var counter = 0
     var bannedDevices = mutableStateListOf<BluetoothDevice>()
     private var letter = ""
     private var isFirstConnect = true
-    private var isScanning: Boolean = false
     val deviceTypeLetter = MutableStateFlow("")
 
     private val deviceTypeToLetter = mapOf(
@@ -77,7 +77,7 @@ class ScanningService @Inject constructor(
     )
 
     private val bleControlManagers = mutableMapOf<String, BleControlManager>()
-    private val connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     init {
         reportViewModel.registerCallback(this)
@@ -107,39 +107,38 @@ class ScanningService @Inject constructor(
         toastMessage.value = "Сканирование!"
         startR = start
         endR = end
+        stopRequested = false
+        scanning.value = false
+        counter = (end - start + 1).toInt()
         deviceQueue.clear()
         foundDevices.clear()
         unCheckedDevices.clear()
         checkedDevices.clear()
         deviceQueueProcessed.clear()
         bannedDevices.clear()
-        diffRanges = (end - start + 1).toInt()
-        counter = diffRanges as Int
-        this.letter = letter
-        deviceTypeLetter.value = letter
+        connectionScope.cancel()
+        connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         if (!scanning.value) {
-            stopRequested = false
             scanning.value = true
             bluetoothLeScanner?.startScan(filters, settings, leScanCallback())
-                ?: Log.e(TAG, "BluetoothLeScanner is null")
-            Log.i(TAG, "Scanning started")
-            Logger.i(TAG, "Scanning started")
+                ?: Log.e(TAG, "BluetoothLeScanner равен null")
+            Log.i(TAG, "Сканирование начато")
+            Logger.i(TAG, "Сканирование начато")
             startConnectionProcess()
         } else {
-            Log.w(TAG, "Scanning is already in progress")
+            Log.w(TAG, "Сканирование уже выполняется")
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stopScanning() {
-        Logger.i(TAG, "Stopping scan and disconnecting all devices")
-        toastMessage.value = "Stop"
-        isScanning = false
+        Logger.i(TAG, "Остановка сканирования и отключение всех устройств")
+        toastMessage.value = "Стоп"
         stopRequested = true
         scanning.value = false
         letter = ""
         isFirstConnect = true
-        Log.i(TAG, "Stopping scan")
+        Log.i(TAG, "Остановка сканирования")
         bluetoothLeScanner?.stopScan(leScanCallback())
         connectionScope.cancel()
         CoroutineScope(Dispatchers.Default).launch {
@@ -148,9 +147,8 @@ class ScanningService @Inject constructor(
             deviceQueue.clear()
             deviceQueueProcessed.clear()
             bleControlManagers.clear()
-            Log.d(TAG, "Scan stopped and device queue cleared")
+            Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
         }
-        connectionScope.cancel()
     }
 
     @SuppressLint("MissingPermission")
@@ -166,7 +164,6 @@ class ScanningService @Inject constructor(
                 else -> null
             }
             if (requiredSubstring != null && !deviceName.contains(requiredSubstring)) return
-
             val startLastFour = startR.toString().takeLast(4)
             val endLastFour = endR.toString().takeLast(4)
             val lastFourDigits = deviceName.takeLast(4).toIntOrNull() ?: return
@@ -189,11 +186,11 @@ class ScanningService @Inject constructor(
 
     private fun startConnectionProcess() {
         connectionScope.launch {
-            while (isActive && (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter != 0)) {
+            while (isActive && scanning.value && (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter > 0)) {
                 while (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
                     processNextDevice()
                 }
-                delay(100) // Short delay to prevent tight loop
+                delay(100) // Короткая задержка для предотвращения тесного цикла
             }
             if (foundDevices.isEmpty() && counter == 0) {
                 stopScanning()
@@ -213,6 +210,8 @@ class ScanningService @Inject constructor(
                     connectToDevice(currentDevice, bleControlManager)
                 }
             }
+        }else{
+            Log.e(TAG,"Error  Queue is empty: ${deviceQueue.isEmpty()} or ${bleControlManagers.size} < $MAX_CONNECTIONS")
         }
     }
 
@@ -282,6 +281,13 @@ class ScanningService @Inject constructor(
                         Log.d(TAG, "Device serial number in range!")
                         checkedDevices.add(device)
                         unCheckedDevices.remove(device)
+                        launch(Dispatchers.IO) {
+                            try {
+                                iniUtil.updateSummaryFileDynamically(device.address)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error updating summary file: ${e.message}")
+                            }
+                        }
                         bleControlManager.sendCommand(
                             device,
                             "ble.off",
