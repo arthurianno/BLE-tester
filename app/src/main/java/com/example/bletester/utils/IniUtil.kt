@@ -73,8 +73,8 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
             )
 
         }
-        Log.d("IniUtil", "NotApproved devices: ${itemsNotApproved.size}")
-        Log.d("IniUtil", "Approved devices: ${itemsApproved.size}")
+        Log.d("IniUtil", "NotApprovedDevices: ${itemsNotApproved.size}")
+        Log.d("IniUtil", "ApprovedDevices: ${itemsApproved.size}")
 
         ini.store()
     }
@@ -99,10 +99,10 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         // Read the current count, increment it, and update
         val currentCount = ini.get(reportSectionName, "Tested devices",Int::class.java) ?: 0
         val newCount = currentCount + 1
-        ini.put(reportSectionName, "Tested devices",newCount)
+        ini.put(reportSectionName, "TestedDevices",newCount)
 
         ini.store()
-        Log.i("IniUtil", "Updated summary file dynamically for device: $approvedDevice. Total count: $newCount")
+        Log.i("IniUtil", "Updated summary file dynamically for device:$approvedDevice. Total count: $newCount")
     }
 
     fun loadTaskFromIni(fileName: String) {
