@@ -284,7 +284,7 @@ class ScanningService @Inject constructor(
                         unCheckedDevices.remove(device)
                         launch(Dispatchers.IO) {
                             try {
-                                iniUtil.updateSummaryFileDynamically(device.address)
+                                iniUtil.updateSummaryFileDynamically(checkedDevices.size)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error updating summary file: ${e.message}")
                             }

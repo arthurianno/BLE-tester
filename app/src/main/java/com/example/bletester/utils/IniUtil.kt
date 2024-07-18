@@ -82,29 +82,31 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
 
 
     @SuppressLint("NewApi")
-    fun updateSummaryFileDynamically(approvedDevice: String) {
+    fun updateSummaryFileDynamically(approvedDevice: Int) {
         val file = File(sharedData.bleTesterDirectory, "report_summary.ini")
-        if (isFirstUpdate) {
-            // Clear the file contents on the first update
-            file.writeText("")
-            isFirstUpdate = false
-            lastKnownCount = 0
+        try {
+            if (!file.exists() || file.length() == 0L) {
+                file.parentFile?.mkdirs()
+                file.createNewFile()
+            }
+            val ini = Wini(file)
+            val reportSectionName = "Report"
+
+            if (isFirstUpdate) {
+                ini.clear()
+                isFirstUpdate = false
+            }
+            ini.put(reportSectionName, "RangeStart", sharedData.addressRange.value?.first)
+            ini.put(reportSectionName, "RangeStop", sharedData.addressRange.value?.second)
+
+
+            ini.put(reportSectionName, "TestedDevices", approvedDevice)
+            ini.store()
+            Log.i("IniUtil", "Обновлен файл сводки для устройства: $approvedDevice. Общее количество: $approvedDevice")
+        } catch (e: Exception) {
+            Log.e("IniUtil", "Ошибка при обновлении файла сводки: ${e.message}", e)
+
         }
-
-        val ini = Wini(file)
-        val reportSectionName = "Report"
-
-        ini.put(reportSectionName, "RangeStart",sharedData.addressRange.value?.first)
-        ini.put(reportSectionName, "RangeStop",sharedData.addressRange.value?.second)
-
-        // Read the current count, increment it, and update
-        val currentCount = ini.get(reportSectionName, "TestedDevices", Int::class.java) ?: lastKnownCount
-        val newCount = currentCount + 1
-        lastKnownCount = newCount
-        ini.put(reportSectionName, "TestedDevices",lastKnownCount)
-
-        ini.store()
-        Log.i("IniUtil", "Updated summary file dynamically for device:$approvedDevice. Total count: $newCount")
     }
 
     fun loadTaskFromIni(fileName: String) {
