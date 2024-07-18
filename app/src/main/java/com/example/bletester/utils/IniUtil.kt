@@ -14,7 +14,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     private val _addressRange = sharedData.addressRange
     private val typeOfDevice = sharedData.typeOfDevice
     private var type: String? = null
-     var isFirstUpdate = true
+    var isFirstUpdate = true
     private val typeOfError = mapOf(
         "Error 19" to "The device turned off intentionally",
         "Error 8" to "The connection timeout expired and the device disconnected itself",
@@ -97,7 +97,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         ini.put(reportSectionName, "RangeStop",sharedData.addressRange.value?.second)
 
         // Read the current count, increment it, and update
-        val currentCount = ini.get(reportSectionName, "Tested devices",Int::class.java) ?: 0
+        val currentCount = ini.get(reportSectionName, "TestedDevices",Int::class.java) ?: 0
         val newCount = currentCount + 1
         ini.put(reportSectionName, "TestedDevices",newCount)
 
