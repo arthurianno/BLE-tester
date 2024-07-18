@@ -1,8 +1,8 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android") version "1.9.0"
-    id ("com.google.dagger.hilt.android")
-    id ("kotlin-kapt")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.dagger.hilt.android")
+    id("kotlin-kapt")
     id("com.google.gms.google-services")
 }
 
@@ -53,48 +53,44 @@ android {
 }
 
 dependencies {
+    val composeBomVersion = "2023.08.00"
+    implementation(platform("androidx.compose:compose-bom:$composeBomVersion"))
 
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
     implementation("androidx.activity:activity-compose:1.9.0")
-    implementation(platform("androidx.compose:compose-bom:2023.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material")
     implementation("com.google.firebase:firebase-appcheck-playintegrity:18.0.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.hilt:hilt-common:1.2.0")
     implementation("androidx.hilt:hilt-work:1.2.0")
-    implementation("androidx.datastore:datastore-preferences-core-jvm:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.preference:preference-ktx:1.2.1")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
+    implementation("com.google.dagger:hilt-android:2.51.1")
+    kapt("com.google.dagger:hilt-android-compiler:2.51.1")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
+    implementation("no.nordicsemi.android:ble:2.7.5")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.8")
+    implementation("no.nordicsemi.android:ble-livedata:2.7.5")
+    implementation("org.ini4j:ini4j:0.5.4")
+
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2023.08.00"))
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation(platform("androidx.compose:compose-bom:$composeBomVersion"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
-    implementation("androidx.navigation:navigation-compose:2.7.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-    implementation ("com.google.dagger:hilt-android:2.51.1")
-    kapt("com.google.dagger:hilt-android-compiler:2.51.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-    implementation ("com.google.accompanist:accompanist-permissions:0.21.1-beta")
-    implementation ("no.nordicsemi.android:ble:2.7.5")
-    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.0")
-    implementation ("androidx.compose.runtime:runtime-livedata:1.6.7")
-    implementation ("no.nordicsemi.android:ble-livedata:2.7.5")
-    implementation ("androidx.work:work-runtime-ktx:2.9.0")
-    implementation ("androidx.work:work-runtime-ktx:2.9.0")
-    implementation ("androidx.compose.material:material")
-    implementation ("org.ini4j:ini4j:0.5.4")
-
-
-
-
-
 }
+
 kapt {
     correctErrorTypes = true
 }

@@ -2,6 +2,10 @@ package com.example.bletester.ui.theme.devicesList
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -65,6 +69,7 @@ import com.example.bletester.utils.PermissionUtils
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
+
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
 @SuppressLint("MissingPermission", "StateFlowValueCalledInComposition",
     "MutableCollectionMutableState"
@@ -82,6 +87,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
+    val allPermissionsGranted = permissionState.allPermissionsGranted
     val addressRange by reportViewModel.addressRange.collectAsState(null)
     val lifecycleOwner = LocalLifecycleOwner.current
     val globalContext = LocalContext.current.applicationContext
@@ -100,13 +106,16 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     val totalDevices by scanViewModel.totalDevices.collectAsState()
     val scanning by scanViewModel.scanning.collectAsState()
     val progress by scanViewModel.progress.collectAsState()
+    val context = LocalContext.current
 
     DisposableEffect(key1 = lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START) {
                 permissionState.launchMultiplePermissionRequest()
-                if (permissionState.allPermissionsGranted) {
-                    Log.e("DeviceListScreen", "All permissions granted!")
+                if (!allPermissionsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                    !Environment.isExternalStorageManager()) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    context.startActivity(intent)
                 }
             }
             if (event == Lifecycle.Event.ON_STOP) {
@@ -160,6 +169,12 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
     }
 
     Scaffold { innerPadding ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            context.startActivity(intent)
+        } else {
+            Log.e("RequestCheck","already granted")
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
