@@ -15,6 +15,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     private val typeOfDevice = sharedData.typeOfDevice
     private var type: String? = null
     var isFirstUpdate = true
+    private var lastKnownCount = 0
     private val typeOfError = mapOf(
         "Error 19" to "The device turned off intentionally",
         "Error 8" to "The connection timeout expired and the device disconnected itself",
@@ -83,11 +84,11 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     @SuppressLint("NewApi")
     fun updateSummaryFileDynamically(approvedDevice: String) {
         val file = File(sharedData.bleTesterDirectory, "report_summary.ini")
-
         if (isFirstUpdate) {
             // Clear the file contents on the first update
             file.writeText("")
             isFirstUpdate = false
+            lastKnownCount = 0
         }
 
         val ini = Wini(file)
@@ -97,9 +98,10 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         ini.put(reportSectionName, "RangeStop",sharedData.addressRange.value?.second)
 
         // Read the current count, increment it, and update
-        val currentCount = ini.get(reportSectionName, "TestedDevices",Int::class.java) ?: 0
+        val currentCount = ini.get(reportSectionName, "TestedDevices", Int::class.java) ?: lastKnownCount
         val newCount = currentCount + 1
-        ini.put(reportSectionName, "TestedDevices",newCount)
+        lastKnownCount = newCount
+        ini.put(reportSectionName, "TestedDevices",lastKnownCount)
 
         ini.store()
         Log.i("IniUtil", "Updated summary file dynamically for device:$approvedDevice. Total count: $newCount")
