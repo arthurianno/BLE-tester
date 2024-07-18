@@ -105,6 +105,7 @@ class ScanningService @Inject constructor(
         sharedData.typeOfDevice.value = typeOfLetterForReport
         Log.d(TAG, "Device type for report: $typeOfLetterForReport")
         toastMessage.value = "Сканирование!"
+        iniUtil.isFirstUpdate = true
         startR = start
         endR = end
         stopRequested = false

@@ -172,8 +172,6 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
             val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
             context.startActivity(intent)
-        } else {
-            Log.e("RequestCheck","already granted")
         }
         Column(
             modifier = Modifier

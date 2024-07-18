@@ -14,6 +14,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     private val _addressRange = sharedData.addressRange
     private val typeOfDevice = sharedData.typeOfDevice
     private var type: String? = null
+     var isFirstUpdate = true
     private val typeOfError = mapOf(
         "Error 19" to "The device turned off intentionally",
         "Error 8" to "The connection timeout expired and the device disconnected itself",
@@ -41,7 +42,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
 
         val timestamp =
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
-        val reportSectionName = "Отчет $timestamp"
+        val reportSectionName = "Report $timestamp"
 
         ini.put("ERRORS", "Error 19", "The device turned off intentionally")
         ini.put(
@@ -78,20 +79,30 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         ini.store()
     }
 
+
     @SuppressLint("NewApi")
     fun updateSummaryFileDynamically(approvedDevice: String) {
         val file = File(sharedData.bleTesterDirectory, "report_summary.ini")
-        file.writeText("")
-        val ini = Wini(file)
-        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        val reportSectionName = "Отчет $timestamp"
 
-        ini.put(reportSectionName, "RangeStart", sharedData.addressRange.value?.first)
-        ini.put(reportSectionName, "RangeStop", sharedData.addressRange.value?.second)
-        ini.put(reportSectionName, "Tested devices: ", approvedDevice.length)
+        if (isFirstUpdate) {
+            // Clear the file contents on the first update
+            file.writeText("")
+            isFirstUpdate = false
+        }
+
+        val ini = Wini(file)
+        val reportSectionName = "Report"
+
+        ini.put(reportSectionName, "RangeStart",sharedData.addressRange.value?.first)
+        ini.put(reportSectionName, "RangeStop",sharedData.addressRange.value?.second)
+
+        // Read the current count, increment it, and update
+        val currentCount = ini.get(reportSectionName, "Tested devices",Int::class.java) ?: 0
+        val newCount = currentCount + 1
+        ini.put(reportSectionName, "Tested devices",newCount)
 
         ini.store()
-        Log.i("IniUtil", "Updated summary file dynamically for device: $approvedDevice")
+        Log.i("IniUtil", "Updated summary file dynamically for device: $approvedDevice. Total count: $newCount")
     }
 
     fun loadTaskFromIni(fileName: String) {
