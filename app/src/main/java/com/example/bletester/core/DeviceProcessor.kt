@@ -15,21 +15,25 @@ class DeviceProcessor @Inject constructor(
     private var errorMessage: String? = null
 
     @SuppressLint("MissingPermission")
-    fun createReportItems(deviceList: List<BluetoothDevice>, status: String): List<ReportItem> {
+    fun createReportItems(deviceList: List<BluetoothDevice>, status: String, bannedDevices: List<BluetoothDevice>): List<ReportItem> {
         return deviceList.map { device ->
             ReportItem(
                 device = device.name ?: "Unknown Device",
                 deviceAddress = device.address,
                 status = status,
-                interpretation = errorMessage.toString()
+                interpretation = if (device in bannedDevices) {
+                    "Устройство не проверено по причине ошибки в отправке команд!"
+                } else {
+                    errorMessage.toString()
+                }
             )
         }
     }
 
     @SuppressLint("MissingPermission")
-    fun updateReportViewModel(command: String, unCheckedDevices: List<BluetoothDevice>, checkedDevices: List<BluetoothDevice>, isScanning: Boolean) {
+    fun updateReportViewModel(command: String, unCheckedDevices: List<BluetoothDevice>, checkedDevices: List<BluetoothDevice>, bannedDevices: List<BluetoothDevice>, isScanning: Boolean) {
         if (!isScanning) {
-            val discoveredAddresses = (unCheckedDevices + checkedDevices).map { it.name.takeLast(4) }.toSet()
+            val discoveredAddresses = (unCheckedDevices + checkedDevices + bannedDevices).map { it.name.takeLast(4) }.toSet()
             Log.d("DeviceProcessor","discoveredAddresses: $discoveredAddresses")
             val addressArray = createAddressArray(sharedData.addressRange.value).toMutableList()
             Log.d("DeviceProcessor","addressArray: $addressArray")
@@ -48,18 +52,19 @@ class DeviceProcessor @Inject constructor(
                 )
             }
 
-            val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked")
-            Log.d("DeviceProcessor", "Unchecked devices: ${notApprovedItemsDevice.size}, Checked devices: ${approvedReportItems.size}, ")
+            val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked", bannedDevices)
+            val bannedReportItems = createReportItems(bannedDevices.distinct(), "Banned", bannedDevices)
+            Log.d("DeviceProcessor", "Unchecked devices: ${notApprovedItemsDevice.size}, Checked devices: ${approvedReportItems.size}, Banned devices: ${bannedReportItems.size}")
 
             sharedData.notApprovedItems = notApprovedItemsDevice
-            sharedData.approvedItems = approvedReportItems
+            sharedData.approvedItems = approvedReportItems + bannedReportItems
 
             if (command.contains("Manual")) {
-                Log.d("DeviceProcessor", "Report updated MANUAL with ${notApprovedItemsDevice.size} unchecked and ${approvedReportItems.size} checked devices")
-                reportViewModel.updateReportItemsManual(notApprovedItemsDevice, approvedReportItems)
+                Log.d("DeviceProcessor", "Report updated MANUAL with ${notApprovedItemsDevice.size} unchecked, ${approvedReportItems.size} checked, and ${bannedReportItems.size} banned devices")
+                reportViewModel.updateReportItemsManual(notApprovedItemsDevice, approvedReportItems + bannedReportItems)
             } else if (command.contains("Auto")) {
-                Log.d("DeviceProcessor", "Report updated AUTO with ${notApprovedItemsDevice.size} unchecked and ${approvedReportItems.size} checked devices")
-                reportViewModel.updateReportItems(notApprovedItemsDevice, approvedReportItems)
+                Log.d("DeviceProcessor", "Report updated AUTO with ${notApprovedItemsDevice.size} unchecked, ${approvedReportItems.size} checked, and ${bannedReportItems.size} banned devices")
+                reportViewModel.updateReportItems(notApprovedItemsDevice, approvedReportItems + bannedReportItems)
             }
         } else {
             Log.w("DeviceProcessor", "Scanning is still in progress, report not updated")

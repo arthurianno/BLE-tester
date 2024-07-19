@@ -90,7 +90,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     }
 
     fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
-        if (isConnected && controlRequest != null) {
+        if (isConnected && controlRequest != null && pinAttempts != 2) {
             entireCheckQueue.add(Pair(device, entireCheck))
             val formattedPinCode = "pin.$pinCode"
             writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
@@ -100,19 +100,12 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
                 }
                 .fail { _, _ ->
                     Log.e("BleControlManager", "PIN command failed to send")
+                    bleCallbackEvent?.onPinCheck("GATT PIN ATTR ERROR")
                     pinAttempts++
-                    if (pinAttempts == 1) {
-                        Log.i("BleControlManager", "Retrying PIN command once")
-                        sendPinCommand(device, pinCode, entireCheck)
-                    } else {
-                        Log.e("BleControlManager", "PIN command failed after retry")
-                        bleCallbackEvent?.onPinCheck("pin.error")
-                        pinAttempts = 0  // Сбросить счетчик для будущих попыток
-                    }
                 }
                 .enqueue()
         } else {
-            Log.e("BleControlManager", "Device is not connected or controlRequest is null")
+            Log.e("BleControlManager", "Device is not connected or controlRequest is null or device is not working")
             bleCallbackEvent?.onPinCheck("pin.error")
         }
     }

@@ -182,7 +182,7 @@ class ScanningService @Inject constructor(
     }
 
     fun updateReportViewModel(command: String) {
-        deviceProcessor.updateReportViewModel(command, unCheckedDevices, checkedDevices, scanning.value)
+        deviceProcessor.updateReportViewModel(command, unCheckedDevices, checkedDevices,bannedDevices, scanning.value)
     }
 
     private fun startConnectionProcess() {
@@ -256,6 +256,12 @@ class ScanningService @Inject constructor(
                             bannedDevices.add(device)
                         }
                         disconnectAndCleanup(bleControlManager, device)
+                    }else if(pin.contains("GATT PIN ATTR ERROR")){
+                        val device = bleControlManager.getConnectedDevice()
+                        if(device != null){
+                            deviceQueue.add(device)
+                        }
+                        disconnectAndCleanup(bleControlManager,device)
                     }
                 }
             }
