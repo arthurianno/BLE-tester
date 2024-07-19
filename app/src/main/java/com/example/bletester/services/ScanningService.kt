@@ -28,8 +28,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import java.util.LinkedList
-import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
@@ -47,7 +45,6 @@ class ScanningService @Inject constructor(
 
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
-    private var deviceQueueProcessed: Queue<BluetoothDevice> = LinkedList()
     var foundDevices = mutableStateListOf<BluetoothDevice>()
     val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
     val checkedDevices = mutableStateListOf<BluetoothDevice>()
@@ -115,7 +112,6 @@ class ScanningService @Inject constructor(
         foundDevices.clear()
         unCheckedDevices.clear()
         checkedDevices.clear()
-        deviceQueueProcessed.clear()
         bannedDevices.clear()
         connectionScope.cancel()
         connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -146,7 +142,6 @@ class ScanningService @Inject constructor(
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
             deviceQueue.clear()
-            deviceQueueProcessed.clear()
             bleControlManagers.clear()
             Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
         }
@@ -226,7 +221,6 @@ class ScanningService @Inject constructor(
                 bleControlManager.sendPinCommand(device,"master", EntireCheck.PIN_C0DE)
                 foundDevices.remove(device)
                 unCheckedDevices.remove(device)
-                deviceQueueProcessed.add(device)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to connect to device ${device.name}: ${e.message}")
