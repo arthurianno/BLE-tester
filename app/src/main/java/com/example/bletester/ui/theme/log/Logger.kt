@@ -1,6 +1,7 @@
 package com.example.bletester.ui.theme.log
 
 import androidx.compose.ui.graphics.Color
+import java.util.Date
 
 // Энумерация для уровней логирования с указанием цвета
 enum class LogLevel(val color: Color) {
@@ -18,15 +19,15 @@ object Logger {
     private val listeners = mutableListOf<(List<LogItem>) -> Unit>()
 
     fun e(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Error,1))
+        addLog(LogItem(tag, message, LogLevel.Error, Date().time))
     }
 
     fun d(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Debug,2))
+        addLog(LogItem(tag, message, LogLevel.Debug, Date().time))
     }
 
     fun i(tag: String, message: String) {
-        addLog(LogItem(tag, message, LogLevel.Info,3))
+        addLog(LogItem(tag, message, LogLevel.Info, Date().time))
     }
 
     fun getLogs(): List<LogItem> {
