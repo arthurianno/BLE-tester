@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.bletester.navigation.AppNavigation
 import com.example.bletester.receivers.SystemBroadcastReceiver
+import com.example.bletester.services.WorkerService
 import com.example.bletester.ui.theme.report.ReportViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -49,8 +50,12 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
+        startWorkerService()
     }
-
+    private fun startWorkerService() {
+        val serviceIntent = Intent(this, WorkerService::class.java)
+        startService(serviceIntent)
+    }
     private fun showBluetoothDialog() {
         if (!bluetoothAdapter.isEnabled) {
             if (!isBtDialogShowed) {
