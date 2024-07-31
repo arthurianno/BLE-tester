@@ -346,7 +346,7 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                             DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
                         }
                         itemsIndexed(devicesToShow) { index, device ->
-                            DeviceListItem(deviceName = device.name, deviceAddress = device.address)
+                            DeviceListItem(device.name ?: "Unknown Device", deviceAddress = device.address)
                             if (index < devicesToShow.lastIndex) {
                                 Divider(color = Color.LightGray, thickness = 1.dp)
                             }

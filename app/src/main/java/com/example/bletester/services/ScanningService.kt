@@ -84,7 +84,7 @@ class ScanningService @Inject constructor(
 
     private fun buildSettings() =
         ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .build()
 
     private fun buildFilter() =
@@ -139,11 +139,29 @@ class ScanningService @Inject constructor(
                 ?: Log.e(TAG, "BluetoothLeScanner равен null")
             Log.i(TAG, "Сканирование начато")
             Logger.i(TAG, "Сканирование начато")
-            startConnectionProcess()
+            generateFakeDevices(250)
+            //startConnectionProcess()
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
         }
     }
+
+    @SuppressLint("MissingPermission")
+    private fun generateFakeDevices(count: Int) {
+        val maxDeviceNumber = 9999 // Максимальное значение номера устройства
+        for (i in 1..count) {
+            if (i > maxDeviceNumber) break // Прекратить генерацию, если номер устройства превышает максимальное значение
+            val address = String.format("%02X:%02X:%02X:%02X:%02X:%02X",
+                (0..255).random(), (0..255).random(), (0..255).random(),
+                (0..255).random(), (0..255).random(), (0..255).random())
+            val name = String.format("SatelliteOnline%04d", i)
+            val device = adapter?.getRemoteDevice(address) ?: continue
+            device.javaClass.getMethod("setAlias", String::class.java).invoke(device, name)
+            Log.i(TAG,"size: ${foundDevices.size}")
+            foundDevices.add(device)
+        }
+    }
+
 
     @SuppressLint("MissingPermission")
     fun stopScanning() {
@@ -216,9 +234,14 @@ class ScanningService @Inject constructor(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private suspend fun processNextDevice() {
         if (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
             val currentDevice = deviceQueue.poll() ?: return
+            if(currentDevice.name == null){
+                Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
+                return
+            }
             if (currentDevice.address !in bannedDevices.map { it.address }) {
                 val bleControlManager = BleControlManager(context)
                 bleControlManagers[currentDevice.address] = bleControlManager
@@ -238,7 +261,7 @@ class ScanningService @Inject constructor(
             withTimeout(10000) {
                 bleControlManager.connect(device).retry(2, 50)
                     .await()
-                Log.d(TAG, "Connected to device ${device.name}")
+                Log.d(TAG, "Connected to device ${device.name ?: "Unknown"}")
                 bleControlManager.sendPinCommand(device,"master", EntireCheck.PIN_C0DE)
                 foundDevices.remove(device)
                 unCheckedDevices.remove(device)
