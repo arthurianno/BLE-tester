@@ -32,6 +32,14 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         itemsNotApproved: List<ReportItem>,
         itemsApproved: List<ReportItem>
     ) {
+        val reportCurrentFile = File(sharedData.bleTesterDirectory, "report_current.ini")
+        if (reportCurrentFile.exists()) {
+            if (reportCurrentFile.delete()) {
+                Log.i("IniUtil", "Файл report_current.ini успешно удален")
+            } else {
+                Log.e("IniUtil", "Не удалось удалить файл report_current.ini")
+            }
+        }
         val file = File(fileName)
         val ini: Wini
 
