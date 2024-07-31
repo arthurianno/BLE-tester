@@ -1,6 +1,7 @@
 package com.example.bletester.utils
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.util.Log
 import com.example.bletester.items.ReportItem
 import org.ini4j.Wini
@@ -110,7 +111,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     }
 
     @SuppressLint("NewApi")
-    fun updateCurrentFileDynamically(approvedDevice: Int) {
+    fun updateCurrentFileDynamically(approvedDevice: BluetoothDevice) {
         val file = File(sharedData.bleTesterDirectory, "report_current.ini")
         try {
             if (!file.exists() || file.length() == 0L) {
@@ -124,17 +125,60 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
                 ini.clear()
                 isFirstUpdate = false
             }
+
             ini.put(reportSectionName, "RangeStart", sharedData.addressRange.value?.first)
             ini.put(reportSectionName, "RangeStop", sharedData.addressRange.value?.second)
 
+            // Получаем текущий список устройств
+            val currentDevices = ini.get(reportSectionName, "TestedDevices", String::class.java) ?: ""
 
-            ini.put(reportSectionName, "TestedDevices", approvedDevice)
+            // Добавляем новое устройство к списку, разделяя запятыми
+            val updatedDevices = if (currentDevices.isEmpty()) {
+                approvedDevice.address
+            } else {
+                "$currentDevices,${approvedDevice.address}"
+            }
+
+            ini.put(reportSectionName, "TestedDevices", updatedDevices)
             ini.store()
-            Log.i("IniUtil", "Обновлен файл сводки для устройства: $approvedDevice. Общее количество: $approvedDevice")
-        } catch (e: Exception) {
-            Log.e("IniUtil", "Ошибка при обновлении файла сводки: ${e.message}", e)
 
+            Log.i("IniUtil", "Обновлен файл поддержки, добавлено устройство: ${approvedDevice.address}")
+        } catch (e: Exception) {
+            Log.e("IniUtil", "Ошибка при обновлении файла поддержки: ${e.message}", e)
         }
+    }
+
+    fun loadApprovedDevicesFromCurrentReport(): Pair<List<String>, Pair<String, String>?> {
+        val file = File(sharedData.bleTesterDirectory, "report_current.ini")
+        val approvedDevices = mutableListOf<String>()
+        var range: Pair<String, String>? = null
+
+        try {
+            if (!file.exists()) {
+                Log.w("IniUtil", "File report_current.ini не существует")
+                return Pair(approvedDevices, range)
+            }
+
+            val ini = Wini(file)
+            val reportSection = ini["Report"]
+
+            if (reportSection != null) {
+                val rangeStart = reportSection["RangeStart"]
+                val rangeStop = reportSection["RangeStop"]
+                if (rangeStart != null && rangeStop != null) {
+                    range = Pair(rangeStart, rangeStop)
+                }
+
+                val testedDevices = reportSection["TestedDevices"]
+                if (testedDevices != null) {
+                    approvedDevices.addAll(testedDevices.split(","))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("IniUtil", "Ошибка при чтении файла report_current.ini: ${e.message}", e)
+        }
+
+        return Pair(approvedDevices, range)
     }
 
     fun loadTaskFromIni(fileName: String) {

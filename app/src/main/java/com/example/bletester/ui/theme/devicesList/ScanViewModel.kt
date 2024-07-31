@@ -1,5 +1,6 @@
 package com.example.bletester.ui.theme.devicesList
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bletester.services.ScanningService
@@ -97,6 +98,7 @@ class ScanViewModel @Inject constructor(
 
     fun stopScanning() {
         scanningService.stopScanning()
+        Log.e("ScanViewModel","stopScanning from ScanViewModel")
     }
 
     fun updateReportViewModel(command: String) {

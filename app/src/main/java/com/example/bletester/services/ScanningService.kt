@@ -101,20 +101,38 @@ class ScanningService @Inject constructor(
         Log.d(TAG, "Address range: ${Pair(start, end)}")
         sharedData.typeOfDevice.value = typeOfLetterForReport
         Log.d(TAG, "Device type for report: $typeOfLetterForReport")
+
+        // Загрузка одобренных устройств из report_current.ini
+        val (approvedDevices, savedRange) = iniUtil.loadApprovedDevicesFromCurrentReport()
+
+        if (savedRange != null && savedRange.first.toLong() == start && savedRange.second.toLong() == end) {
+            Log.i(TAG, "Диапазон совпадает с сохраненным. Загружаем одобренные устройства.")
+            approvedDevices.forEach { address ->
+                val device = adapter?.getRemoteDevice(address)
+                if (device != null && !checkedDevices.any { it.address == device.address }) {
+                    checkedDevices.add(device)
+                }
+            }
+            Log.i(TAG, "Загружено ${approvedDevices.size} одобренных устройств.")
+            counter = ((end - start) + 1L).toInt() - approvedDevices.size
+        } else {
+            Log.i(TAG, "Диапазон не совпадает с сохраненным. Начинаем новое сканирование.")
+            counter = ((end - start) + 1L).toInt()
+        }
+
         toastMessage.value = "Сканирование!"
         iniUtil.isFirstUpdate = true
         startR = start
         endR = end
         stopRequested = false
         scanning.value = false
-        counter = (end - start + 1).toInt()
         deviceQueue.clear()
         foundDevices.clear()
         unCheckedDevices.clear()
-        checkedDevices.clear()
         bannedDevices.clear()
         connectionScope.cancel()
         connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
         if (!scanning.value) {
             scanning.value = true
             bluetoothLeScanner?.startScan(filters, settings, leScanCallback())
@@ -132,6 +150,7 @@ class ScanningService @Inject constructor(
         Logger.i(TAG, "Остановка сканирования и отключение всех устройств")
         toastMessage.value = "Стоп"
         stopRequested = true
+        counter = 0
         scanning.value = false
         letter = ""
         isFirstConnect = true
@@ -171,6 +190,7 @@ class ScanningService @Inject constructor(
                     device.address !in checkedDevices.map { it.address }) {
                     deviceQueue.add(device)
                     foundDevices.add(device)
+
                 }
             }
         }
@@ -182,6 +202,7 @@ class ScanningService @Inject constructor(
 
     private fun startConnectionProcess() {
         connectionScope.launch {
+            Log.e(TAG,"counter : $counter, active: $isActive, value scanning: ${scanning.value}, ")
             while (isActive && scanning.value && (deviceQueue.isNotEmpty() || bleControlManagers.isNotEmpty() || counter > 0)) {
                 while (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
                     processNextDevice()
@@ -280,11 +301,13 @@ class ScanningService @Inject constructor(
                             .contains(letter)
                     ) {
                         Log.d(TAG, "Device serial number in range!")
+
                         checkedDevices.add(device)
                         unCheckedDevices.remove(device)
                         launch(Dispatchers.IO) {
                             try {
                                 iniUtil.updateSummaryFileDynamically(checkedDevices.size)
+                                iniUtil.updateCurrentFileDynamically(device)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error updating summary file: ${e.message}")
                             }
@@ -295,6 +318,7 @@ class ScanningService @Inject constructor(
                             EntireCheck.default_command
                         )
                         counter--
+                        Log.d(TAG, "counter is :$counter")
                         disconnectAndCleanup(bleControlManager, device)
                     } else {
                         Log.d(TAG, "Device serial number out of range. Added to banned list.")
@@ -325,12 +349,14 @@ class ScanningService @Inject constructor(
             event.contains("Modify") -> {
                 if (scanning.value) {
                     stopScanning()
+                    Log.e(TAG,"Scanning stop from onEvent Modify")
                     updateReportViewModel("Auto")
                 }
             }
             event.contains("Deleted") -> {
                 if (scanning.value) {
                     stopScanning()
+                    Log.e(TAG,"Scanning stop from onEvent Deleted")
                     updateReportViewModel("Auto")
                 }
             }
