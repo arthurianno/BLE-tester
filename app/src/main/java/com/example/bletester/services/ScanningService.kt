@@ -139,30 +139,11 @@ class ScanningService @Inject constructor(
                 ?: Log.e(TAG, "BluetoothLeScanner равен null")
             Log.i(TAG, "Сканирование начато")
             Logger.i(TAG, "Сканирование начато")
-            generateFakeDevices(250)
-            //startConnectionProcess()
+            startConnectionProcess()
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
         }
     }
-
-    @SuppressLint("MissingPermission")
-    private fun generateFakeDevices(count: Int) {
-        val maxDeviceNumber = 9999 // Максимальное значение номера устройства
-        for (i in 1..count) {
-            if (i > maxDeviceNumber) break // Прекратить генерацию, если номер устройства превышает максимальное значение
-            val address = String.format("%02X:%02X:%02X:%02X:%02X:%02X",
-                (0..255).random(), (0..255).random(), (0..255).random(),
-                (0..255).random(), (0..255).random(), (0..255).random())
-            val name = String.format("SatelliteOnline%04d", i)
-            val device = adapter?.getRemoteDevice(address) ?: continue
-            device.javaClass.getMethod("setAlias", String::class.java).invoke(device, name)
-            Log.i(TAG,"size: ${foundDevices.size}")
-            foundDevices.add(device)
-        }
-    }
-
-
     @SuppressLint("MissingPermission")
     fun stopScanning() {
         Logger.i(TAG, "Остановка сканирования и отключение всех устройств")
@@ -372,17 +353,19 @@ class ScanningService @Inject constructor(
             event.contains("Modify") -> {
                 if (scanning.value) {
                     stopScanning()
-                    Log.e(TAG,"Scanning stop from onEvent Modify")
+                    Log.e(TAG, "Scanning stop from onEvent Modify")
                     updateReportViewModel("Auto")
                 }
             }
+
             event.contains("Deleted") -> {
                 if (scanning.value) {
                     stopScanning()
-                    Log.e(TAG,"Scanning stop from onEvent Deleted")
+                    Log.e(TAG, "Scanning stop from onEvent Deleted")
                     updateReportViewModel("Auto")
                 }
             }
+
             event.contains("Auto") -> {
                 letter = deviceTypeToLetter[sharedData.typeOfDevice.value.toString()].toString()
                 deviceTypeLetter.value = letter
@@ -393,9 +376,19 @@ class ScanningService @Inject constructor(
                     if (start != null && end != null) {
                         scanLeDevice(letter, start, end)
                     } else {
-                        Log.e(TAG, "Invalid address range")
+                        Log.e(TAG, "Invalid address range, retrying in 1 second")
+                        connectionScope.launch {
+                            delay(1000)
+                            onEvent("Auto") // Повторяем попытку через секунду
+                        }
                     }
-                } ?: Log.e(TAG, "Address range is null")
+                } ?: run {
+                    Log.e(TAG, "Address range is null, retrying in 1 second")
+                    connectionScope.launch {
+                        delay(1000)
+                        onEvent("Auto") // Повторяем попытку через секунду
+                    }
+                }
             }
         }
     }

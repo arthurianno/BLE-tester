@@ -96,11 +96,11 @@ class ReportViewModel @Inject constructor(
         try {
             Log.d("ReportViewModel", "Handling new file: $fileName")
             notifyNewFile(fileName)
-            callbackFileModifyEvent?.onEvent("Auto")
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error processing new file: ${e.message}")
         }
     }
+
 
     private fun handleFileDeleted(fileName: String) {
         try {
@@ -121,6 +121,7 @@ class ReportViewModel @Inject constructor(
             toastMessage.value = "Найден новый отчет: $fileName"
             Log.e("ReportViewModel", "New report!: $fileName")
             iniUtil.loadTaskFromIni(fileName)
+            callbackFileModifyEvent?.onEvent("Auto")
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error updating file: ${e.message}")
         }

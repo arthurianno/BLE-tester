@@ -33,6 +33,7 @@ class FileObserver @Inject constructor(
     fun startObserving() {
         observerJob?.cancel()
         observerJob = coroutineScope.launch {
+            checkForFileChanges() // Выполнить начальную проверку
             while (isActive) {
                 checkForFileChanges()
                 delay(1000)
@@ -51,8 +52,8 @@ class FileObserver @Inject constructor(
 
         // Check for new or modified files
         currentFiles.forEach { (fileName, lastModified) ->
-            if (!lastModifiedTimes.containsKey(fileName)) {
-                Log.d("FileObserver", "New file detected: $fileName")
+            if (!lastModifiedTimes.containsKey(fileName) || lastModifiedTimes.isEmpty()) {
+                Log.d("FileObserver", "Новый файл обнаружен: $fileName")
                 onFileAdded?.invoke(fileName)
             } else if (lastModified > lastModifiedTimes[fileName]!!) {
                 Log.d("FileObserver", "File modified: $fileName")
