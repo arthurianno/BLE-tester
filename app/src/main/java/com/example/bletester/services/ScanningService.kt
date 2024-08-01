@@ -185,7 +185,7 @@ class ScanningService @Inject constructor(
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
             if (stopRequested) return
-            val device = result.device
+            val device = result.device ?: return
             val deviceName = device.name ?: return
             val requiredSubstring = when (letter) {
                 "E" -> "SatelliteVoice"
