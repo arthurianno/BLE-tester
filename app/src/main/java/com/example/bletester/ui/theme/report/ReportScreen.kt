@@ -109,7 +109,7 @@ fun ReportItemCard(item: ReportItem) {
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = item.device,
+                text = item.device ?: "Unknown",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )

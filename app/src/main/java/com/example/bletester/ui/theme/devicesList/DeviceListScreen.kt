@@ -72,7 +72,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
 @SuppressLint("MissingPermission", "StateFlowValueCalledInComposition",
-    "MutableCollectionMutableState"
+    "MutableCollectionMutableState", "SuspiciousIndentation"
 )
 @Composable
 fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
@@ -152,19 +152,20 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
 
     LaunchedEffect(addressRange) {
         Log.e("DevicesListScreen", "Trying to change address")
+        Log.d("DeviceListScreen", "Address range changed: $addressRange")
         addressRange?.let { (start, end) ->
             val newStartRange = start.toLongOrNull() ?: 0L
             val newEndRange = end.toLongOrNull() ?: 0L
-            if (newStartRange != startRange || newEndRange != endRange) {
                 scanViewModel.setStartRange(newStartRange.toString())
                 scanViewModel.setEndRange(newEndRange.toString())
                 Log.e("DevicesListScreen", "Changing address 1 and 2")
-                if (startRange != 0L && endRange != 0L) {
-                    // Логика при изменении диапазона
+                if (startRange != 0L && endRange != 0L && !scanViewModel.scanning.value) {
+                    Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
+                    scanViewModel.scanLeDevice()
                 } else {
-                    Log.e("DevicesListScreen", "Address is nulls")
+                    Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
+                    Log.e("DevicesListScreen", "Address is nulls or scanning processed")
                 }
-            }
         }
     }
 

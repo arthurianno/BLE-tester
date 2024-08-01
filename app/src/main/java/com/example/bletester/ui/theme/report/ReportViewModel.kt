@@ -120,10 +120,21 @@ class ReportViewModel @Inject constructor(
         try {
             toastMessage.value = "Найден новый отчет: $fileName"
             Log.e("ReportViewModel", "New report!: $fileName")
+
+            // Сначала загружаем данные из INI файла
             iniUtil.loadTaskFromIni(fileName)
-            callbackFileModifyEvent?.onEvent("Auto")
+
+            // Проверяем, что данные были успешно загружены
+            if (sharedData.addressRange.value != null && sharedData.typeOfDevice.value != null) {
+                // Только после успешной загрузки вызываем событие "Auto"
+                callbackFileModifyEvent?.onEvent("Auto")
+            } else {
+                Log.e("ReportViewModel", "Failed to load task data from INI file")
+                toastMessage.value = "Не удалось загрузить данные из нового отчета"
+            }
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error updating file: ${e.message}")
+            toastMessage.value = "Ошибка при обработке нового отчета: ${e.message}"
         }
     }
 

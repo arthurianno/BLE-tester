@@ -139,6 +139,7 @@ class ScanningService @Inject constructor(
                 ?: Log.e(TAG, "BluetoothLeScanner равен null")
             Log.i(TAG, "Сканирование начато")
             Logger.i(TAG, "Сканирование начато")
+            //generateFakeDevices(250)
             startConnectionProcess()
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
@@ -160,8 +161,22 @@ class ScanningService @Inject constructor(
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
             deviceQueue.clear()
+            checkedDevices.clear()
             bleControlManagers.clear()
             Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun generateFakeDevices(count: Int) {
+        for (i in 1..count) {
+            val address = String.format("%02X:%02X:%02X:%02X:%02X:%02X",
+                (0..255).random(), (0..255).random(), (0..255).random(),
+                (0..255).random(), (0..255).random(), (0..255).random())
+            val name = "FakeDevice_${String.format("%04d", i)}"
+            val device = adapter?.getRemoteDevice(address) ?: continue
+            device.javaClass.getMethod("setAlias", String::class.java).invoke(device, name)
+            foundDevices.add(device)
         }
     }
 
@@ -306,7 +321,12 @@ class ScanningService @Inject constructor(
                     ) {
                         Log.d(TAG, "Device serial number in range!")
 
-                        checkedDevices.add(device)
+                        if (checkedDevices.none { it.address == device.address }) {
+                            checkedDevices.add(device)
+                            Log.i("Устройство добавлено", device.address)
+                        } else {
+                            Log.e("Устройство с таким адресом уже существует", device.address)
+                        }
                         unCheckedDevices.remove(device)
                         launch(Dispatchers.IO) {
                             try {
