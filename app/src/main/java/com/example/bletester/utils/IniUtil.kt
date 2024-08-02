@@ -32,10 +32,10 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         itemsNotApproved: List<ReportItem>,
         itemsApproved: List<ReportItem>
     ) {
-        val reportCurrentFile = File(sharedData.bleTesterDirectory, "report_current.ini")
+        val reportCurrentFile = File(sharedData.bleTesterDirectory, "current.ini")
         if (reportCurrentFile.exists()) {
             if (reportCurrentFile.delete()) {
-                Log.i("IniUtil", "Файл report_current.ini успешно удален")
+                Log.i("IniUtil", "Файл current.ini успешно удален")
             } else {
                 Log.e("IniUtil", "Не удалось удалить файл report_current.ini")
             }
@@ -92,7 +92,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
 
     @SuppressLint("NewApi")
     fun updateSummaryFileDynamically(approvedDevice: Int) {
-        val file = File(sharedData.bleTesterDirectory, "report_summary.ini")
+        val file = File(sharedData.bleTesterDirectory, "summary.ini")
         try {
             if (!file.exists() || file.length() == 0L) {
                 file.parentFile?.mkdirs()
@@ -118,9 +118,9 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
         }
     }
 
-    @SuppressLint("NewApi")
+    @SuppressLint("NewApi", "MissingPermission")
     fun updateCurrentFileDynamically(approvedDevice: BluetoothDevice) {
-        val file = File(sharedData.bleTesterDirectory, "report_current.ini")
+        val file = File(sharedData.bleTesterDirectory, "current.ini")
         try {
             if (!file.exists() || file.length() == 0L) {
                 file.parentFile?.mkdirs()
@@ -142,22 +142,22 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
 
             // Добавляем новое устройство к списку, разделяя запятыми
             val updatedDevices = if (currentDevices.isEmpty()) {
-                approvedDevice.address
+                approvedDevice.address + " :" + approvedDevice.name
             } else {
-                "$currentDevices,${approvedDevice.address}"
+                "$currentDevices,${approvedDevice.address + " :" + approvedDevice.name}"
             }
 
             ini.put(reportSectionName, "TestedDevices", updatedDevices)
             ini.store()
 
-            Log.i("IniUtil", "Обновлен файл поддержки, добавлено устройство: ${approvedDevice.address}")
+            Log.i("IniUtil", "Обновлен файл поддержки, добавлено устройство: ${approvedDevice.address + " :" + approvedDevice.name}")
         } catch (e: Exception) {
             Log.e("IniUtil", "Ошибка при обновлении файла поддержки: ${e.message}", e)
         }
     }
 
     fun loadApprovedDevicesFromCurrentReport(): Pair<List<String>, Pair<String, String>?> {
-        val file = File(sharedData.bleTesterDirectory, "report_current.ini")
+        val file = File(sharedData.bleTesterDirectory, "current.ini")
         val approvedDevices = mutableListOf<String>()
         var range: Pair<String, String>? = null
 
@@ -183,7 +183,7 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
                 }
             }
         } catch (e: Exception) {
-            Log.e("IniUtil", "Ошибка при чтении файла report_current.ini: ${e.message}", e)
+            Log.e("IniUtil", "Ошибка при чтении файла current.ini: ${e.message}", e)
         }
 
         return Pair(approvedDevices, range)

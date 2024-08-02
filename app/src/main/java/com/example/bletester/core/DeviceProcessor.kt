@@ -15,45 +15,62 @@ class DeviceProcessor @Inject constructor(
     private var errorMessage: String? = null
 
     @SuppressLint("MissingPermission")
-    fun createReportItems(deviceList: List<BluetoothDevice>, status: String, bannedDevices: List<BluetoothDevice>): List<ReportItem> {
+    private fun createReportItems(deviceList: List<BluetoothDevice>, status: String, bannedDevices: List<BluetoothDevice>): List<ReportItem> {
         return deviceList.map { device ->
             ReportItem(
                 device = device.name ?: "Unknown Device",
-                deviceAddress = device.address,
+                deviceAddress = device.address ?: "Unknown Address",
                 status = status,
                 interpretation = if (device in bannedDevices) {
                     "Устройство не проверено по причине ошибки в отправке команд!"
                 } else {
-                    errorMessage.toString()
+                    errorMessage ?: "Нет ошибок"
                 }
             )
         }
     }
 
+
     @SuppressLint("MissingPermission")
-    fun updateReportViewModel(command: String, unCheckedDevices: List<BluetoothDevice>, checkedDevices: List<BluetoothDevice>, bannedDevices: List<BluetoothDevice>, isScanning: Boolean) {
+    fun updateReportViewModel(
+        command: String,
+        unCheckedDevices: List<BluetoothDevice>?,
+        checkedDevices: List<BluetoothDevice>?,
+        bannedDevices: List<BluetoothDevice>?,
+        isScanning: Boolean
+    ) {
         if (!isScanning) {
-            val discoveredAddresses = (unCheckedDevices + checkedDevices + bannedDevices).map { it.name.takeLast(4) }.toSet()
-            Log.d("DeviceProcessor","discoveredAddresses: $discoveredAddresses")
+            val discoveredAddresses = ((unCheckedDevices ?: emptyList()) +
+                    (checkedDevices ?: emptyList()) +
+                    (bannedDevices ?: emptyList()))
+                .mapNotNull { it.name?.takeLast(4) }
+                .toSet()
+
+            Log.d("DeviceProcessor", "discoveredAddresses: $discoveredAddresses")
+
             val addressArray = createAddressArray(sharedData.addressRange.value).toMutableList()
-            Log.d("DeviceProcessor","addressArray: $addressArray")
+            Log.d("DeviceProcessor", "addressArray: $addressArray")
+
             val deviceTypeToLetter = mapOf(
                 "Online" to "SatelliteOnline",
                 "Voice" to "VoiceOnline",
                 "AnotherDevice" to "F"
             )
+
             addressArray.removeAll { it.takeLast(4) in discoveredAddresses }
+
             val notApprovedItemsDevice = addressArray.map { address ->
                 ReportItem(
-                    device = deviceTypeToLetter[sharedData.typeOfDevice.value] + address.takeLast(4),
+                    device = deviceTypeToLetter[sharedData.typeOfDevice.value].orEmpty() + address.takeLast(4),
                     deviceAddress = address,
                     status = "Не найдено",
                     interpretation = errorMessage?.takeIf { it.isNotBlank() } ?: "Не было в эфире!"
                 )
             }
 
-            val approvedReportItems = createReportItems(checkedDevices.distinct(), "Checked", bannedDevices)
-            val bannedReportItems = createReportItems(bannedDevices.distinct(), "Banned", bannedDevices)
+            val approvedReportItems = createReportItems(checkedDevices?.distinct() ?: emptyList(), "Checked", bannedDevices ?: emptyList())
+            val bannedReportItems = createReportItems(bannedDevices?.distinct() ?: emptyList(), "Banned", bannedDevices ?: emptyList())
+
             Log.d("DeviceProcessor", "Unchecked devices: ${notApprovedItemsDevice.size}, Checked devices: ${approvedReportItems.size}, Banned devices: ${bannedReportItems.size}")
 
             sharedData.notApprovedItems = notApprovedItemsDevice

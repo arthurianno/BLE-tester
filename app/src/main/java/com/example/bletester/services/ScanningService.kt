@@ -45,7 +45,7 @@ class ScanningService @Inject constructor(
 
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
-    var foundDevices = mutableStateListOf<BluetoothDevice>()
+    var foundDevices = mutableSetOf<BluetoothDevice>()
     val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
     val checkedDevices = mutableStateListOf<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
@@ -84,7 +84,7 @@ class ScanningService @Inject constructor(
 
     private fun buildSettings() =
         ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
     private fun buildFilter() =
@@ -102,7 +102,7 @@ class ScanningService @Inject constructor(
         sharedData.typeOfDevice.value = typeOfLetterForReport
         Log.d(TAG, "Device type for report: $typeOfLetterForReport")
 
-        // Загрузка одобренных устройств из report_current.ini
+        // Загрузка одобренных устройств из current.ini
         val (approvedDevices, savedRange) = iniUtil.loadApprovedDevicesFromCurrentReport()
 
         if (savedRange != null && savedRange.first.toLong() == start && savedRange.second.toLong() == end) {
@@ -167,18 +167,6 @@ class ScanningService @Inject constructor(
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun generateFakeDevices(count: Int) {
-        for (i in 1..count) {
-            val address = String.format("%02X:%02X:%02X:%02X:%02X:%02X",
-                (0..255).random(), (0..255).random(), (0..255).random(),
-                (0..255).random(), (0..255).random(), (0..255).random())
-            val name = "FakeDevice_${String.format("%04d", i)}"
-            val device = adapter?.getRemoteDevice(address) ?: continue
-            device.javaClass.getMethod("setAlias", String::class.java).invoke(device, name)
-            foundDevices.add(device)
-        }
-    }
 
     @SuppressLint("MissingPermission")
     private fun leScanCallback() = object : ScanCallback() {
@@ -413,3 +401,4 @@ class ScanningService @Inject constructor(
         }
     }
 }
+

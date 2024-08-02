@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -341,13 +342,15 @@ fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
                     LazyColumn(
                         modifier = Modifier.padding(horizontal = 8.dp)
                     ) {
-                        val devicesToShow = when (selectedModeType.first) {
+                        val devicesToShow by derivedStateOf { when (selectedModeType.first) {
                             DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
                             DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
                             DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
                         }
+                        }
+                        Log.e("ListScreen","devicetoshow $devicesToShow")
                         itemsIndexed(devicesToShow) { index, device ->
-                            DeviceListItem(device.name ?: "Unknown Device", deviceAddress = device.address)
+                            DeviceListItem(device.name ?: "Unknown Device", deviceAddress = device.address ?: "Unknown Address")
                             if (index < devicesToShow.lastIndex) {
                                 Divider(color = Color.LightGray, thickness = 1.dp)
                             }
