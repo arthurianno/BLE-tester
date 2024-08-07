@@ -35,14 +35,8 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun LogsScreen(onBluetoothStateChanged: () -> Unit) {
+fun LogsScreen() {
 
-    SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
-        val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
-        if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
-            onBluetoothStateChanged()
-        }
-    }
 
     // Состояние для хранения логов
     var logs by remember { mutableStateOf(Logger.getLogs()) }

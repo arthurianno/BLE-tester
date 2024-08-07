@@ -76,57 +76,55 @@ class ReportViewModel @Inject constructor(
 
     private fun initializeFileObserver() {
         fileObserver.setCallbacks(
-            onFileAdded = { fileName ->
-                Log.d("ReportViewModel", "File added callback: $fileName")
-                handleNewFile(fileName)
+            onTaskFileAdded = { fileName ->
+                Log.d("ReportViewModel", "Task file added callback: $fileName")
+                handleNewTaskFile(fileName)
             },
-            onFileDeleted = { fileName ->
-                Log.d("ReportViewModel", "File deleted callback: $fileName")
-                handleFileDeleted(fileName)
+            onTaskFileDeleted = { fileName ->
+                Log.d("ReportViewModel", "Task file deleted callback: $fileName")
+                handleTaskFileDeleted(fileName)
             },
-            onFileModified = { fileName ->
-                Log.d("ReportViewModel", "File modified callback: $fileName")
-                handleFileModify(fileName)
+            onTaskFileModified = { fileName ->
+                Log.d("ReportViewModel", "Task file modified callback: $fileName")
+                handleTaskFileModify(fileName)
+            },
+            onRefreshAdapterDetected = {
+                Log.d("ReportViewModel", "RefreshAdapter file detected or modified")
+                handleRefreshAdapterFile()
             }
         )
         fileObserver.startObserving()
     }
 
-    private fun handleNewFile(fileName: String) {
+    private fun handleNewTaskFile(fileName: String) {
         try {
-            Log.d("ReportViewModel", "Handling new file: $fileName")
-            notifyNewFile(fileName)
+            Log.d("ReportViewModel", "Handling new task file: $fileName")
+            notifyNewTaskFile(fileName)
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Error processing new file: ${e.message}")
+            Log.e("ReportViewModel", "Error processing new task file: ${e.message}")
         }
     }
 
-
-    private fun handleFileDeleted(fileName: String) {
+    private fun handleTaskFileDeleted(fileName: String) {
         try {
-            Log.i("ReportViewModel", "File deleted: $fileName")
+            Log.i("ReportViewModel", "Task file deleted: $fileName")
             callbackFileModifyEvent?.onEvent("Deleted")
         } catch (e: Exception) {
-            Log.e("ReportViewModel", "Error processing deleted file: ${e.message}")
+            Log.e("ReportViewModel", "Error processing deleted task file: ${e.message}")
         }
     }
 
-    private fun handleFileModify(fileName: String) {
-        Log.i("ReportViewModel", "File modified: $fileName")
+    private fun handleTaskFileModify(fileName: String) {
+        Log.i("ReportViewModel", "Task file modified: $fileName")
         callbackFileModifyEvent?.onEvent("Modify")
     }
 
-    private fun notifyNewFile(fileName: String) {
+    private fun notifyNewTaskFile(fileName: String) {
         try {
             toastMessage.value = "Найден новый отчет: $fileName"
             Log.e("ReportViewModel", "New report!: $fileName")
-
-            // Сначала загружаем данные из INI файла
             iniUtil.loadTaskFromIni(fileName)
-
-            // Проверяем, что данные были успешно загружены
             if (sharedData.addressRange.value != null && sharedData.typeOfDevice.value != null) {
-                // Только после успешной загрузки вызываем событие "Auto"
                 callbackFileModifyEvent?.onEvent("Auto")
             } else {
                 Log.e("ReportViewModel", "Failed to load task data from INI file")
@@ -135,6 +133,26 @@ class ReportViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error updating file: ${e.message}")
             toastMessage.value = "Ошибка при обработке нового отчета: ${e.message}"
+        }
+    }
+
+    private fun handleRefreshAdapterFile() {
+        val refreshAdapterFile = File(sharedData.bleTesterDirectory, "refreshAdapter.txt")
+        if (refreshAdapterFile.exists()) {
+            try {
+                val content = refreshAdapterFile.readText().trim()
+                val numberValue = content.toIntOrNull()
+                if (numberValue != null) {
+                    sharedData.refreshAdapterValue.value = numberValue
+                    Log.d("ReportViewModel", "RefreshAdapter value updated: $numberValue")
+                } else {
+                    Log.e("ReportViewModel", "Invalid number in refreshAdapter.txt: $content")
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error reading refreshAdapter.txt: ${e.message}")
+            }
+        } else {
+            Log.d("ReportViewModel", "refreshAdapter.txt does not exist")
         }
     }
 

@@ -26,29 +26,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val reportViewModel: ReportViewModel = hiltViewModel()
-            AppNavigation(
-                onBluetoothStateChanged = {
-                    showBluetoothDialog()
-                }
-            )
+            AppNavigation()
 
-            // Check Bluetooth state on launch
-            LaunchedEffect(Unit) {
-                if (!bluetoothAdapter.isEnabled) {
-                    showBluetoothDialog()
-                }
-            }
 
-            // Listen for Bluetooth state changes
-            SystemBroadcastReceiver(
-                systemAction = BluetoothAdapter.ACTION_STATE_CHANGED,
-                onSystemEvent = { intent ->
-                    val state = intent?.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                    if (state == BluetoothAdapter.STATE_OFF) {
-                        showBluetoothDialog()
-                    }
-                }
-            )
+
+
         }
         startWorkerService()
     }
@@ -56,21 +38,5 @@ class MainActivity : ComponentActivity() {
         val serviceIntent = Intent(this, WorkerService::class.java)
         startService(serviceIntent)
     }
-    private fun showBluetoothDialog() {
-        if (!bluetoothAdapter.isEnabled) {
-            if (!isBtDialogShowed) {
-                val enableBluetoothIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                startBluetoothIntentForResult.launch(enableBluetoothIntent)
-                isBtDialogShowed = true
-            }
-        }
-    }
 
-    private val startBluetoothIntentForResult =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            isBtDialogShowed = false
-            if (result.resultCode != RESULT_OK) {
-                showBluetoothDialog()
-            }
-        }
 }

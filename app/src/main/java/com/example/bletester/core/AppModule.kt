@@ -3,6 +3,7 @@ package com.example.bletester.core
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.SharedPreferences
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.services.ScanningService
 import com.example.bletester.ui.theme.devicesList.ScanViewModel
@@ -27,6 +28,11 @@ object AppModule {
     fun provideBluetoothAdapter(@ApplicationContext context: Context): BluetoothAdapter {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         return manager.adapter
+    }
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
+        return context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     }
 
     @Provides
@@ -84,9 +90,10 @@ object AppModule {
         reportViewModel: ReportViewModel,
         deviceProcessor: DeviceProcessor,
         sharedData: SharedData,
-        iniUtil: IniUtil
+        iniUtil: IniUtil,
+        sharedPreferences: SharedPreferences
     ): ScanningService {
-        return ScanningService(context,reportViewModel,deviceProcessor,sharedData,iniUtil)
+        return ScanningService(context, reportViewModel, deviceProcessor, sharedData, iniUtil, sharedPreferences)
     }
 
     @Provides

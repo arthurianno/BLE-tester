@@ -69,7 +69,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         controlRequest = null
         controlResponse = null
         connectedDevice = null
-
+        close()
     }
 
     fun getConnectedDevice(): BluetoothDevice? = connectedDevice

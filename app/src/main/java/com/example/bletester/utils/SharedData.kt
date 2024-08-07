@@ -9,6 +9,7 @@ class SharedData {
     var addressRange = MutableStateFlow<Pair<String, String>?>(null)
     val typeOfDevice = MutableStateFlow<String?>(null)
     var approvedItems: List<ReportItem> = emptyList()
+    val refreshAdapterValue = MutableStateFlow<Int?>(null)
     var notApprovedItems: List<ReportItem> = emptyList()
     private val externalStorageDirectory: File = Environment.getExternalStorageDirectory()
     val bleTesterDirectory = File(externalStorageDirectory, "BLE Tester Directory")

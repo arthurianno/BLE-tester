@@ -16,7 +16,6 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
     private val typeOfDevice = sharedData.typeOfDevice
     private var type: String? = null
     var isFirstUpdate = true
-    private var lastKnownCount = 0
     private val typeOfError = mapOf(
         "Error 19" to "The device turned off intentionally",
         "Error 8" to "The connection timeout expired and the device disconnected itself",

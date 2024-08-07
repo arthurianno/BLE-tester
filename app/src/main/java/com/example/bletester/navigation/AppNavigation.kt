@@ -20,7 +20,7 @@ import com.example.bletester.ui.theme.report.ReportScreen
 
 @Composable
 fun AppNavigation(
-    onBluetoothStateChanged:()->Unit
+
 ){
     val navController =  rememberNavController()
 
@@ -63,17 +63,17 @@ fun AppNavigation(
         {
            composable(route = Screens.DeviceListScreen.name){
                DeviceListScreen(
-                   onBluetoothStateChanged
+
                )
            }
             composable(route = Screens.ReportScreen.name){
                 ReportScreen(
-                    onBluetoothStateChanged
+
                 )
             }
             composable(route = Screens.LogsScreen.name){
-                LogsScreen(
-                    onBluetoothStateChanged)
+                LogsScreen()
+
             }
         }
     }

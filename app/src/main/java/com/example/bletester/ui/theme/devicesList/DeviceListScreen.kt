@@ -76,16 +76,11 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
     "MutableCollectionMutableState", "SuspiciousIndentation"
 )
 @Composable
-fun DeviceListScreen(onBluetoothStateChanged: () -> Unit) {
+fun DeviceListScreen() {
     val scanViewModel: ScanViewModel = hiltViewModel()
     val reportViewModel: ReportViewModel = hiltViewModel()
 
-    SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
-        val action = bluetoothState?.action ?: return@SystemBroadcastReceiver
-        if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
-            onBluetoothStateChanged()
-        }
-    }
+
 
     val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
     val allPermissionsGranted = permissionState.allPermissionsGranted

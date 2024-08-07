@@ -37,17 +37,12 @@ import com.example.bletester.receivers.SystemBroadcastReceiver
 
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-fun ReportScreen(onBluetoothStateChanged: () -> Unit) {
+fun ReportScreen() {
     val reportViewModel: ReportViewModel = hiltViewModel()
     val reportItems = reportViewModel.reportItems
     val globalContext = LocalContext.current
     val toastMessage by reportViewModel.toastMessage.collectAsState()
 
-    SystemBroadcastReceiver(systemAction = BluetoothAdapter.ACTION_STATE_CHANGED) { bluetoothState ->
-        bluetoothState?.action?.takeIf { it == BluetoothAdapter.ACTION_STATE_CHANGED }?.let {
-            onBluetoothStateChanged()
-        }
-    }
 
     LaunchedEffect(toastMessage) {
         toastMessage?.let {

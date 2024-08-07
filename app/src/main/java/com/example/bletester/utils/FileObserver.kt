@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 class FileObserver @Inject constructor(
@@ -16,24 +17,27 @@ class FileObserver @Inject constructor(
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var lastModifiedTimes = mutableMapOf<String, Long>()
 
-    private var onFileAdded: ((String) -> Unit)? = null
-    private var onFileDeleted: ((String) -> Unit)? = null
-    private var onFileModified: ((String) -> Unit)? = null
+    private var onTaskFileAdded: ((String) -> Unit)? = null
+    private var onTaskFileDeleted: ((String) -> Unit)? = null
+    private var onTaskFileModified: ((String) -> Unit)? = null
+    private var onRefreshAdapterDetected: (() -> Unit)? = null
 
     fun setCallbacks(
-        onFileAdded: (String) -> Unit,
-        onFileDeleted: (String) -> Unit,
-        onFileModified: (String) -> Unit
+        onTaskFileAdded: (String) -> Unit,
+        onTaskFileDeleted: (String) -> Unit,
+        onTaskFileModified: (String) -> Unit,
+        onRefreshAdapterDetected: () -> Unit
     ) {
-        this.onFileAdded = onFileAdded
-        this.onFileDeleted = onFileDeleted
-        this.onFileModified = onFileModified
+        this.onTaskFileAdded = onTaskFileAdded
+        this.onTaskFileDeleted = onTaskFileDeleted
+        this.onTaskFileModified = onTaskFileModified
+        this.onRefreshAdapterDetected = onRefreshAdapterDetected
     }
 
     fun startObserving() {
         observerJob?.cancel()
         observerJob = coroutineScope.launch {
-            checkForFileChanges() // Выполнить начальную проверку
+            checkForFileChanges() // Perform initial check
             while (isActive) {
                 checkForFileChanges()
                 delay(1000)
@@ -47,26 +51,45 @@ class FileObserver @Inject constructor(
 
     private fun checkForFileChanges() {
         val currentFiles = sharedData.bleTesterDirectory.listFiles { file ->
-            file.isFile && file.name.startsWith("Task")
+            file.isFile && (file.name.startsWith("Task") || file.name == "refreshAdapter.txt")
         }?.associate { it.name to it.lastModified() } ?: emptyMap()
 
         // Check for new or modified files
         currentFiles.forEach { (fileName, lastModified) ->
-            if (!lastModifiedTimes.containsKey(fileName) || lastModifiedTimes.isEmpty()) {
-                Log.d("FileObserver", "Новый файл обнаружен: $fileName")
-                onFileAdded?.invoke(fileName)
-            } else if (lastModified > lastModifiedTimes[fileName]!!) {
-                Log.d("FileObserver", "File modified: $fileName")
-                onFileModified?.invoke(fileName)
+            when {
+                fileName == "refreshAdapter.txt" -> handleRefreshAdapterFile(lastModified)
+                fileName.startsWith("Task") -> handleTaskFile(fileName, lastModified)
             }
         }
 
         // Check for deleted files
         lastModifiedTimes.keys.minus(currentFiles.keys).forEach { deletedFileName ->
-            Log.d("FileObserver", "File deleted: $deletedFileName")
-            onFileDeleted?.invoke(deletedFileName)
+            if (deletedFileName.startsWith("Task")) {
+                Log.d("FileObserver", "Task file deleted: $deletedFileName")
+                onTaskFileDeleted?.invoke(deletedFileName)
+            }
         }
 
         lastModifiedTimes = currentFiles.toMutableMap()
     }
+
+    private fun handleRefreshAdapterFile(lastModified: Long) {
+        val previousLastModified = lastModifiedTimes["refreshAdapter.txt"]
+        if (previousLastModified == null || lastModified > previousLastModified) {
+            Log.d("FileObserver", "refreshAdapter.txt detected or modified")
+            onRefreshAdapterDetected?.invoke()
+        }
+    }
+
+    private fun handleTaskFile(fileName: String, lastModified: Long) {
+        if (!lastModifiedTimes.containsKey(fileName)) {
+            Log.d("FileObserver", "New Task file detected: $fileName")
+            onTaskFileAdded?.invoke(fileName)
+        } else if (lastModified > lastModifiedTimes[fileName]!!) {
+            Log.d("FileObserver", "Task file modified: $fileName")
+            onTaskFileModified?.invoke(fileName)
+        }
+    }
+
+
 }
