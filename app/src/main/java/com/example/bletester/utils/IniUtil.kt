@@ -128,48 +128,58 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
             }
             val ini = Wini(file)
             val reportSectionName = "Report"
-
             if (isFirstUpdate) {
                 ini.clear()
                 isFirstUpdate = false
             }
 
+            // Записываем диапазон адресов
             ini.put(reportSectionName, "RangeStart", sharedData.addressRange.value?.first)
             ini.put(reportSectionName, "RangeStop", sharedData.addressRange.value?.second)
 
-            // Получаем текущий список устройств
-            val currentDevices = ini.get(reportSectionName, "TestedDevices", String::class.java) ?: ""
+            // Получаем текущие списки MAC-адресов и имен устройств
+            val currentMacs = ini.get(reportSectionName, "TestedDevicesMacs", String::class.java) ?: ""
+            val currentNames = ini.get(reportSectionName, "TestedDevicesNames", String::class.java) ?: ""
 
-            // Добавляем новое устройство к списку, разделяя запятыми
-            val updatedDevices = if (currentDevices.isEmpty()) {
-                approvedDevice.address + " :" + approvedDevice.name
+            // Добавляем новое устройство к спискам, разделяя запятыми
+            val updatedMacs = if (currentMacs.isEmpty()) {
+                approvedDevice.address
             } else {
-                "$currentDevices,${approvedDevice.address + " :" + approvedDevice.name}"
+                "$currentMacs,${approvedDevice.address}"
             }
 
-            ini.put(reportSectionName, "TestedDevices", updatedDevices)
+            val updatedNames = if (currentNames.isEmpty()) {
+                approvedDevice.name ?: ""
+            } else {
+                "$currentNames,${approvedDevice.name ?: ""}"
+            }
+
+            // Записываем обновленные списки в INI файл
+            ini.put(reportSectionName, "TestedDevicesMacs", updatedMacs)
+            ini.put(reportSectionName, "TestedDevicesNames", updatedNames)
+
             ini.store()
 
-            Log.i("IniUtil", "Обновлен файл поддержки, добавлено устройство: ${approvedDevice.address + " :" + approvedDevice.name}")
+            Log.i("IniUtil", "Обновлен файл поддержки, добавлено устройство: MAC - ${approvedDevice.address}, Имя - ${approvedDevice.name ?: "Неизвестно"}")
         } catch (e: Exception) {
             Log.e("IniUtil", "Ошибка при обновлении файла поддержки: ${e.message}", e)
         }
     }
 
-    fun loadApprovedDevicesFromCurrentReport(): Pair<List<String>, Pair<String, String>?> {
+    fun loadApprovedDevicesFromCurrentReport(): Triple<List<String>, List<String>, Pair<String, String>?> {
         val file = File(sharedData.bleTesterDirectory, "current.ini")
-        val approvedDevices = mutableListOf<String>()
+        val approvedMacs = mutableListOf<String>()
+        val approvedNames = mutableListOf<String>()
         var range: Pair<String, String>? = null
 
         try {
             if (!file.exists()) {
-                Log.w("IniUtil", "File report_current.ini не существует")
-                return Pair(approvedDevices, range)
+                Log.w("IniUtil", "Файл current.ini не существует")
+                return Triple(approvedMacs, approvedNames, range)
             }
 
             val ini = Wini(file)
             val reportSection = ini["Report"]
-
             if (reportSection != null) {
                 val rangeStart = reportSection["RangeStart"]
                 val rangeStop = reportSection["RangeStop"]
@@ -177,48 +187,47 @@ class IniUtil @Inject constructor( private val sharedData: SharedData) {
                     range = Pair(rangeStart, rangeStop)
                 }
 
-                val testedDevices = reportSection["TestedDevices"]
-                if (testedDevices != null) {
-                    approvedDevices.addAll(testedDevices.split(","))
+                val testedDevicesMacs = reportSection["TestedDevicesMacs"]
+                val testedDevicesNames = reportSection["TestedDevicesNames"]
+
+                if (testedDevicesMacs != null) {
+                    approvedMacs.addAll(testedDevicesMacs.split(","))
+                }
+                if (testedDevicesNames != null) {
+                    approvedNames.addAll(testedDevicesNames.split(","))
                 }
             }
         } catch (e: Exception) {
             Log.e("IniUtil", "Ошибка при чтении файла current.ini: ${e.message}", e)
         }
 
-        return Pair(approvedDevices, range)
+        return Triple(approvedMacs, approvedNames, range)
     }
-
     fun loadTaskFromIni(fileName: String) {
-        val file = File(sharedData.bleTesterDirectory, fileName)
-        if (!file.exists()) {
-            Log.e("ReportViewModel", "file not found: $fileName")
-            return
-        }
-        val ini = Wini(file)
-        ini.forEach { sectionName, section ->
-            var rangeStart: String? = null
-            var rangeStop: String? = null
-            if (sectionName.startsWith("Task")) {
-                type = section["Type"]
-                rangeStart = section["RangeStart"]
-                rangeStop = section["RangeStop"]
-                Log.i("ReportItem", "Type: $type")
-                Log.i("ReportItem", "RangeStart: $rangeStart")
-                Log.i("ReportItem", "RangeStop: $rangeStop")
+        try {
+            val file = File(sharedData.bleTesterDirectory, fileName)
+            if (!file.exists()) {
+                Log.e("ReportViewModel", "file not found: $fileName")
+                return
             }
-            if (rangeStart != null && rangeStop != null && type != null) {
-                Log.i(
-                    "ReportViewModel",
-                    "The new RangeStart and rangeStop values do not match the current addressRange value"
-                )
-                _addressRange.value = Pair(rangeStart, rangeStop)
-                typeOfDevice.value = type
-                Log.i(
-                    "ReportViewModel",
-                    "addressRange updated: $rangeStart - $rangeStop : addressRange - ${_addressRange.value?.first} - ${_addressRange.value?.second}"
-                )
+            val ini = Wini(file)
+            ini.forEach { sectionName, section ->
+                if (sectionName.startsWith("Task")) {
+                    type = section["Type"]
+                    val rangeStart = section["RangeStart"]
+                    val rangeStop = section["RangeStop"]
+
+                    if (rangeStart != null && rangeStop != null && type != null) {
+                        _addressRange.value = Pair(rangeStart, rangeStop)
+                        typeOfDevice.value = type
+                        Log.i("ReportViewModel", "addressRange updated: $rangeStart - $rangeStop")
+                    } else {
+                        Log.w("ReportViewModel", "Missing required values in Task section")
+                    }
+                }
             }
+        } catch (e: Exception) {
+            Log.e("ReportViewModel", "Error loading task from INI: ${e.message}", e)
         }
     }
 }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import no.nordicsemi.android.ble.BleManager
+import no.nordicsemi.android.ble.ConnectionPriorityRequest
 import no.nordicsemi.android.ble.data.Data
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -96,17 +97,17 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
             writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
                 .done {
                     Log.i("BleControlManager", "PIN command sent: $formattedPinCode")
-                    pinAttempts = 0  // Сбросить счетчик попыток при успешной отправке
+                    pinAttempts = 0
                 }
                 .fail { _, _ ->
                     Log.e("BleControlManager", "PIN command failed to send")
-                    bleCallbackEvent?.onPinCheck("GATT PIN ATTR ERROR")
+                    bleCallbackEvent?.onPinCheck(device,"GATT PIN ATTR ERROR")
                     pinAttempts++
                 }
                 .enqueue()
         } else {
             Log.e("BleControlManager", "Device is not connected or controlRequest is null or device is not working")
-            bleCallbackEvent?.onPinCheck("pin.error")
+            bleCallbackEvent?.onPinCheck(device,"pin.error")
         }
     }
 
@@ -135,7 +136,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         Log.e("BleControlManager","version is :$hwVer")
         serialNumber = hwVer
         Log.i("BleControlManager","callback: $bleCallbackEvent")
-        bleCallbackEvent?.onVersionCheck(serialNumber)
+        connectedDevice?.let { bleCallbackEvent?.onVersionCheck(it,serialNumber) }
         log(Log.DEBUG, "VERSION: $hwVer")
         Logger.d("BleControlManager", "VERSION: $hwVer")
     }
@@ -155,9 +156,9 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         if (pinResponse.contains("pin.ok")) {
             Logger.d("BleControlManager", "Pin code is correct")
             Log.i("BleControlManager", "callback: $bleCallbackEvent")
-            bleCallbackEvent?.onPinCheck("pin.ok")
+            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it,"pin.ok") }
         } else if (pinResponse.contains("pin.error")) {
-            bleCallbackEvent?.onPinCheck("pin.error")
+            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it,"pin.error") }
         }
         }
 

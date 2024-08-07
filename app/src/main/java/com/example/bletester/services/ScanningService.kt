@@ -95,6 +95,7 @@ class ScanningService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     fun scanLeDevice(letter: String, start: Long, end: Long) {
+        //restartBluetoothAdapter()
         Logger.i(TAG, "Scanning started for device type: $letter, range: $start - $end")
         val typeOfLetterForReport = deviceTypeToLetterToReport[letter]
         sharedData.addressRange.value = Pair(start.toString(), end.toString())
@@ -103,23 +104,23 @@ class ScanningService @Inject constructor(
         Log.d(TAG, "Device type for report: $typeOfLetterForReport")
 
         // Загрузка одобренных устройств из current.ini
-        val (approvedDevices, savedRange) = iniUtil.loadApprovedDevicesFromCurrentReport()
-
+        val (approvedMacs, approvedNames, savedRange) = iniUtil.loadApprovedDevicesFromCurrentReport()
         if (savedRange != null && savedRange.first.toLong() == start && savedRange.second.toLong() == end) {
             Log.i(TAG, "Диапазон совпадает с сохраненным. Загружаем одобренные устройства.")
-            approvedDevices.forEach { address ->
-                val device = adapter?.getRemoteDevice(address)
+            approvedMacs.forEachIndexed { _, mac ->
+                val device = adapter?.getRemoteDevice(mac)
                 if (device != null && !checkedDevices.any { it.address == device.address }) {
                     checkedDevices.add(device)
                 }
             }
-            Log.i(TAG, "Загружено ${approvedDevices.size} одобренных устройств.")
-            counter = ((end - start) + 1L).toInt() - approvedDevices.size
+            Log.i(TAG, "Загружено ${approvedMacs.size} одобренных устройств.")
+            counter = ((end - start) + 1L).toInt() - approvedMacs.size
         } else {
             Log.i(TAG, "Диапазон не совпадает с сохраненным. Начинаем новое сканирование.")
             counter = ((end - start) + 1L).toInt()
         }
 
+        // Остальная часть функции остается без изменений
         toastMessage.value = "Сканирование!"
         iniUtil.isFirstUpdate = true
         startR = start
@@ -135,11 +136,9 @@ class ScanningService @Inject constructor(
 
         if (!scanning.value) {
             scanning.value = true
-            bluetoothLeScanner?.startScan(filters, settings, leScanCallback())
-                ?: Log.e(TAG, "BluetoothLeScanner равен null")
+            bluetoothLeScanner?.startScan(filters, settings, leScanCallback()) ?: Log.e(TAG, "BluetoothLeScanner равен null")
             Log.i(TAG, "Сканирование начато")
             Logger.i(TAG, "Сканирование начато")
-            //generateFakeDevices(250)
             startConnectionProcess()
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
@@ -166,6 +165,25 @@ class ScanningService @Inject constructor(
             Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
         }
     }
+
+    @SuppressLint("MissingPermission")
+    private fun restartBluetoothAdapter() {
+        if (adapter?.isEnabled == true) {
+            adapter.disable()
+            Log.d(TAG, "Отлючение адаптера")
+            // Wait for Bluetooth to turn off
+            while (adapter.state != BluetoothAdapter.STATE_OFF) {
+                Thread.sleep(100)
+            }
+        }
+        adapter?.enable()
+        Log.d(TAG, "Включение адаптера")
+        // Wait for Bluetooth to turn on
+        while (adapter?.state != BluetoothAdapter.STATE_ON) {
+            Thread.sleep(100)
+        }
+    }
+
 
 
     @SuppressLint("MissingPermission")
@@ -265,31 +283,24 @@ class ScanningService @Inject constructor(
 
     private fun setupBleControlManager(bleControlManager: BleControlManager) {
         bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
-            override fun onPinCheck(pin: String) {
+            override fun onPinCheck(device: BluetoothDevice, pin: String) {
                 connectionScope.launch {
                     if (pin.contains("pin.ok")) {
-                        Log.i(TAG, "Pin code is correct")
-                        val device = bleControlManager.getConnectedDevice()
-                        bleControlManager.sendCommand(device!!,"serial", EntireCheck.HW_VER)
+                        Log.i(TAG, "Pin code is correct for device ${device.address}")
+                        bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
                     } else if (pin.contains("pin.error")) {
-                        Log.e(TAG, "Pin is error")
-                        val device = bleControlManager.getConnectedDevice()
-                        if (device != null) {
-                            bannedDevices.add(device)
-                        }
+                        Log.e(TAG, "Pin is error for device ${device.address}")
+                        bannedDevices.add(device)
                         disconnectAndCleanup(bleControlManager, device)
-                    }else if(pin.contains("GATT PIN ATTR ERROR")){
-                        val device = bleControlManager.getConnectedDevice()
-                        if(device != null){
-                            deviceQueue.add(device)
-                        }
-                        disconnectAndCleanup(bleControlManager,device)
+                    } else if(pin.contains("GATT PIN ATTR ERROR")) {
+                        deviceQueue.add(device)
+                        disconnectAndCleanup(bleControlManager, device)
                     }
                 }
             }
 
-            override fun onVersionCheck(version: String) {
-                Log.e(TAG, "Version :$version")
+            override fun onVersionCheck(device: BluetoothDevice, version: String) {
+                Log.e(TAG, "Version: $version for device ${device.address}")
                 connectionScope.launch {
                     val versionPrefix = version.firstOrNull()
                     val versionNumber = version.substring(1).toLongOrNull()
