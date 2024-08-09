@@ -13,7 +13,6 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
-import com.example.bletester.ble.BleManagerPool
 import com.example.bletester.core.DeviceProcessor
 import com.example.bletester.core.EntireCheck
 import com.example.bletester.ui.theme.log.Logger
@@ -44,7 +43,6 @@ class ScanningService @Inject constructor(
     private val sharedData: SharedData,
     private val iniUtil: IniUtil,
     private val sharedPreferences: SharedPreferences,
-    private val bleManagerPool: BleManagerPool
 ) : FileModifyEvent {
 
     val toastMessage = MutableStateFlow<String?>(null)
@@ -81,7 +79,7 @@ class ScanningService @Inject constructor(
     )
 
     private val bleControlManagers = mutableMapOf<String, BleControlManager>()
-    private var connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var connectionScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
         reportViewModel.registerCallback(this)
@@ -141,8 +139,6 @@ class ScanningService @Inject constructor(
         foundDevices.clear()
         unCheckedDevices.clear()
         bannedDevices.clear()
-        connectionScope.cancel()
-        connectionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
         if (!scanning.value) {
             scanning.value = true
@@ -333,84 +329,75 @@ class ScanningService @Inject constructor(
     }
 
     private fun setupBleControlManager(bleControlManager: BleControlManager) {
-        connectionScope.launch {
             bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
                 @SuppressLint("MissingPermission")
-                override fun onPinCheck(device: BluetoothDevice, pin: String) {
-                    if (pin.contains("pin.ok")) {
-                        Log.i(TAG, "Pin code is correct for device ${device.name}")
-                        bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
-                        Log.d(TAG, "sendCommand SERIAL to device ${device.name ?: "Unknown"}")
-                    } else if (pin.contains("pin.error")) {
-                        Log.e(TAG, "Pin is error for device ${device.address}")
-                        bannedDevices.add(device)
-                        disconnectAndCleanup(bleControlManager, device)
-                    } else if (pin.contains("GATT PIN ATTR ERROR")) {
-                        deviceQueue.add(device)
-                        disconnectAndCleanup(bleControlManager, device)
+                override suspend fun onPinCheck(device: BluetoothDevice, pin: String) {
+                    CoroutineScope(Dispatchers.IO).launch{
+                        if (pin.contains("pin.ok")) {
+                            Log.i("MyBleCallback", "Pin code is correct for device ${device.name}")
+                            // Выполнение команды
+                            bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
+                            Log.d("MyBleCallback", "sendCommand SERIAL to device ${device.name ?: "Unknown"}")
+                        } else if (pin.contains("pin.error")) {
+                            Log.e("MyBleCallback", "Pin is error for device ${device.address}")
+                            bannedDevices.add(device)
+                            disconnectAndCleanup(bleControlManager, device)
+                        } else if (pin.contains("GATT PIN ATTR ERROR")) {
+                            deviceQueue.add(device)
+                            disconnectAndCleanup(bleControlManager, device)
+                        }
                     }
                 }
 
-                @SuppressLint("MissingPermission")
-                override fun onVersionCheck(device: BluetoothDevice, version: String) {
-                    Log.e(TAG, "Version: $version for device ${device.address}")
-                    val versionPrefix = version.firstOrNull()
-                    val versionNumber = version.substring(1).toLongOrNull()
-                    val device = bleControlManager.getConnectedDevice()
+                override suspend fun onVersionCheck(device: BluetoothDevice, version: String) {
+                    CoroutineScope(Dispatchers.IO).launch{
+                        Log.e("MyBleCallback", "Version: $version for device ${device.address}")
+                        val versionPrefix = version.firstOrNull()
+                        val versionNumber = version.substring(1).toLongOrNull()
 
-                    if (versionPrefix == null || versionNumber == null || device == null) {
-                        Log.e(TAG, "Invalid version format or no connected device")
-                        disconnectAndCleanup(bleControlManager, device)
-                        return
-                    }
-                    Logger.i(TAG, "Device version check: $version for device ${device.address}")
-
-                    Log.d(TAG, "Version received: $version")
-
-                    if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
-                        Log.d(TAG, "Device serial number in range!")
-
-                        if (checkedDevices.none { it.address == device.address }) {
-                            checkedDevices.add(device)
-                            Log.i("Устройство добавлено", device.address)
-                        } else {
-                            Log.e("Устройство с таким адресом уже существует", device.address)
+                        if (versionPrefix == null || versionNumber == null) {
+                            Log.e("MyBleCallback", "Invalid version format or no connected device")
+                            disconnectAndCleanup(bleControlManager, device)
+                            return@launch
                         }
-                        unCheckedDevices.remove(device)
-                        launch(Dispatchers.IO) {
-                            try {
-                                iniUtil.updateSummaryFileDynamically(checkedDevices.size)
-                                iniUtil.updateCurrentFileDynamically(device)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error updating summary file: ${e.message}")
+
+                        if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
+                            if (checkedDevices.none { it.address == device.address }) {
+                                checkedDevices.add(device)
+                                Log.i("MyBleCallback", "Device added: ${device.address}")
+                            } else {
+                                Log.e("MyBleCallback", "Device with the same address already exists: ${device.address}")
                             }
+                            unCheckedDevices.remove(device)
+                            // Обновление файлов и отправка команды
+                            launch(Dispatchers.IO) {
+                                try {
+                                    iniUtil.updateSummaryFileDynamically(checkedDevices.size)
+                                    iniUtil.updateCurrentFileDynamically(device)
+                                } catch (e: Exception) {
+                                    Log.e("MyBleCallback", "Error updating summary file: ${e.message}")
+                                }
+                            }
+                            bleControlManager.sendCommand(device, "ble.off", EntireCheck.default_command)
+                            disconnectAndCleanup(bleControlManager, device)
+                        } else {
+                            Log.d("MyBleCallback", "Device serial number out of range. Added to banned list.")
+                            bannedDevices.add(device)
+                            disconnectAndCleanup(bleControlManager, device)
                         }
-                        bleControlManager.sendCommand(device, "ble.off", EntireCheck.default_command)
-                        Log.d(TAG, "sendCommand ble.off to device ${device.name ?: "Unknown"}")
-                        counter--
-                        Log.d(TAG, "counter is :$counter")
-                        disconnectAndCleanup(bleControlManager, device)
-                    } else {
-                        Log.d(TAG, "Device serial number out of range. Added to banned list.")
-                        Log.e(TAG, "Device version!: $version")
-                        Log.e(TAG, "range: $startR and $endR")
-                        Log.e(TAG, "letter for prefix: $letter")
-                        Log.e(TAG, "Device version prefix: $versionPrefix")
-                        bannedDevices.add(device)
-                        disconnectAndCleanup(bleControlManager, device)
                     }
                 }
-            })
-        }
+
+        })
     }
 
+
+
     private fun disconnectAndCleanup(bleControlManager: BleControlManager, device: BluetoothDevice?) {
-        connectionScope.launch {
+        CoroutineScope(Dispatchers.IO).launch {
             bleControlManager.disconnect().await()
-            delay(500)
             bleControlManager.cleanup()
             device?.let { bleControlManagers.remove(it.address) }
-            deviceProcessor.setErrorMessage(null)
             bleControlManager.setBleCallbackEvent(null)
         }
     }

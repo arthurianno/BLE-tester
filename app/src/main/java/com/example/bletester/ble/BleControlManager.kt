@@ -94,7 +94,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
     }
 
-    fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
+       fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null && pinAttempts != 2) {
             entireCheckQueue.add(Pair(device, entireCheck))
             val formattedPinCode = "pin.$pinCode"
@@ -105,15 +105,20 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
                 }
                 .fail { _, _ ->
                     Log.e("BleControlManager", "PIN command failed to send")
-                    bleCallbackEvent?.onPinCheck(device,"GATT PIN ATTR ERROR")
+                    coroutineScope.launch {
+                        bleCallbackEvent?.onPinCheck(device, "GATT PIN ATTR ERROR")
+                    }
                     pinAttempts++
                 }
                 .enqueue()
         } else {
             Log.e("BleControlManager", "Device is not connected or controlRequest is null or device is not working")
-            bleCallbackEvent?.onPinCheck(device,"pin.error")
+            coroutineScope.launch {
+                bleCallbackEvent?.onPinCheck(device, "pin.error")
+            }
         }
     }
+
 
     private  fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
         Log.d("BleControlManager", "Handling response data from device: ${device.address}, data: ${data?.contentToString()}")
@@ -140,7 +145,9 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         Log.e("BleControlManager","version is :$hwVer")
         serialNumber = hwVer
         Log.i("BleControlManager","callback: $bleCallbackEvent")
-        connectedDevice?.let { bleCallbackEvent?.onVersionCheck(it,serialNumber) }
+        coroutineScope.launch {
+            connectedDevice?.let { bleCallbackEvent?.onVersionCheck(it, serialNumber) }
+        }
 
     }
 
@@ -159,9 +166,13 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         if (pinResponse.contains("pin.ok")) {
             Logger.d("BleControlManager", "Pin code is correct")
             Log.i("BleControlManager", "callback: $bleCallbackEvent")
-            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it,"pin.ok") }
+            coroutineScope.launch {
+                connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.ok") }
+            }
         } else if (pinResponse.contains("pin.error")) {
-            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it,"pin.error") }
+            coroutineScope.launch {
+                connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.error") }
+            }
         }
         }
 
