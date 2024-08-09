@@ -15,7 +15,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import no.nordicsemi.android.ble.BleManager
-import no.nordicsemi.android.ble.ConnectionPriorityRequest
 import no.nordicsemi.android.ble.data.Data
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -34,7 +33,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     private var pinAttempts = 0
 
 
-    fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent) {
+    fun setBleCallbackEvent(bleCallbackEvent: BleCallbackEvent?) {
         this.bleCallbackEvent = bleCallbackEvent
     }
 
@@ -62,6 +61,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
             }
             Log.i("BleControlManager", "BLE callback set!")
         }
+        updateConnectionParameters()
         enableNotifications(controlResponse).enqueue()
     }
 
@@ -70,6 +70,10 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         controlResponse = null
         connectedDevice = null
         close()
+    }
+    private fun updateConnectionParameters() {
+
+        requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
     }
 
     fun getConnectedDevice(): BluetoothDevice? = connectedDevice
@@ -137,8 +141,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         serialNumber = hwVer
         Log.i("BleControlManager","callback: $bleCallbackEvent")
         connectedDevice?.let { bleCallbackEvent?.onVersionCheck(it,serialNumber) }
-        log(Log.DEBUG, "VERSION: $hwVer")
-        Logger.d("BleControlManager", "VERSION: $hwVer")
+
     }
 
     @SuppressLint("SuspiciousIndentation")
