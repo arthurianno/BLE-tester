@@ -72,7 +72,8 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterialApi::class)
-@SuppressLint("MissingPermission", "StateFlowValueCalledInComposition",
+@SuppressLint(
+    "MissingPermission", "StateFlowValueCalledInComposition",
     "MutableCollectionMutableState", "SuspiciousIndentation"
 )
 @Composable
@@ -80,9 +81,8 @@ fun DeviceListScreen() {
     val scanViewModel: ScanViewModel = hiltViewModel()
     val reportViewModel: ReportViewModel = hiltViewModel()
 
-
-
-    val permissionState = rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
+    val permissionState =
+        rememberMultiplePermissionsState(permissions = PermissionUtils.permissions)
     val allPermissionsGranted = permissionState.allPermissionsGranted
     val addressRange by reportViewModel.addressRange.collectAsState(null)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -109,7 +109,8 @@ fun DeviceListScreen() {
             if (event == Lifecycle.Event.ON_START) {
                 permissionState.launchMultiplePermissionRequest()
                 if (!allPermissionsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-                    !Environment.isExternalStorageManager()) {
+                    !Environment.isExternalStorageManager()
+                ) {
                     val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                     context.startActivity(intent)
                 }
@@ -132,7 +133,11 @@ fun DeviceListScreen() {
     var showDropdown by remember { mutableStateOf(false) }
     var showDropdownOption by remember { mutableStateOf(false) }
 
-    LaunchedEffect(scanViewModel.foundDevices, scanViewModel.unCheckedDevices, scanViewModel.checkedDevices) {
+    LaunchedEffect(
+        scanViewModel.foundDevices,
+        scanViewModel.unCheckedDevices,
+        scanViewModel.checkedDevices
+    ) {
         foundedDevice = scanViewModel.foundDevices
         checkedDevice = scanViewModel.checkedDevices
         uncheckedDevice = scanViewModel.unCheckedDevices
@@ -152,19 +157,19 @@ fun DeviceListScreen() {
         addressRange?.let { (start, end) ->
             val newStartRange = start.toLongOrNull() ?: 0L
             val newEndRange = end.toLongOrNull() ?: 0L
-                scanViewModel.setStartRange(newStartRange.toString())
-                scanViewModel.setEndRange(newEndRange.toString())
-                Log.e("DevicesListScreen", "Changing address 1 and 2")
-                if (startRange != 0L && endRange != 0L && !scanViewModel.scanning.value) {
-                    Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
-                    scanViewModel.scanLeDevice()
-                } else {
-                    Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
-                    Log.e("DevicesListScreen", "Address is nulls or scanning processed")
-                }
+            scanViewModel.setStartRange(newStartRange.toString())
+            scanViewModel.setEndRange(newEndRange.toString())
+            Log.e("DevicesListScreen", "Changing address 1 and 2")
+            if (startRange != 0L && endRange != 0L && !scanViewModel.scanning.value) {
+                Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
+                scanViewModel.scanLeDevice()
+            } else {
+                Log.e("DevicesListScreen", "scanning value : ${scanViewModel.scanning.value} ")
+                Log.e("DevicesListScreen", "Address is nulls or scanning processed")
+            }
         }
     }
-
+    // TODO [RUSLAN]: старайся делить интерфейс на несколько отдельных compose функций. Файл получается очень длинным
     Scaffold { innerPadding ->
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
             val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
@@ -192,7 +197,12 @@ fun DeviceListScreen() {
                         value = selectedDeviceType,
                         onValueChange = {},
                         readOnly = true,
-                        trailingIcon = { Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = "Dropdown Icon") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowDropDown,
+                                contentDescription = "Dropdown Icon"
+                            )
+                        },
                         label = { Text("Тип устройства") }
                     )
 
@@ -203,12 +213,14 @@ fun DeviceListScreen() {
                         deviceTypes.forEachIndexed { index, text ->
                             DropdownMenuItem(
                                 onClick = {
-                                    scanViewModel.updateSelectedDeviceType(when(index) {
-                                        0 -> "D"
-                                        1 -> "E"
-                                        2 -> "F"
-                                        else -> "D"
-                                    })
+                                    scanViewModel.updateSelectedDeviceType(
+                                        when (index) {
+                                            0 -> "D"
+                                            1 -> "E"
+                                            2 -> "F"
+                                            else -> "D"
+                                        }
+                                    )
                                     showDropdown = false
                                 }
                             ) {
@@ -218,7 +230,11 @@ fun DeviceListScreen() {
                     }
                 }
             }
-            CustomProgressBar(progress = progress, currentCount = if (totalDevices > 0) checkedDevice.size else 0, totalCount = totalDevices)
+            CustomProgressBar(
+                progress = progress,
+                currentCount = if (totalDevices > 0) checkedDevice.size else 0,
+                totalCount = totalDevices
+            )
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -234,7 +250,9 @@ fun DeviceListScreen() {
                         .clip(RoundedCornerShape(8.dp)),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = if (isStartRangeValid) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
+                        backgroundColor = if (isStartRangeValid) Color(0xFFF0F0F0) else Color(
+                            0xFFFFCDD2
+                        ),
                         cursorColor = Color.Black,
                         focusedIndicatorColor = if (isStartRangeValid) Color(0xFF6200EE) else Color.Red,
                         unfocusedIndicatorColor = if (isStartRangeValid) Color.Gray else Color.Red
@@ -251,10 +269,12 @@ fun DeviceListScreen() {
                         .weight(1f)
                         .padding(vertical = 8.dp)
                         .height(56.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(8.dp)), // TODO [RUSLAN]: все цвета, формы, шрифты можно настроить в Material Theme, чтобы не плодить столько вызовов.
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = if (isEndRangeValid) Color(0xFFF0F0F0) else Color(0xFFFFCDD2),
+                        backgroundColor = if (isEndRangeValid) Color(0xFFF0F0F0) else Color(
+                            0xFFFFCDD2
+                        ),
                         cursorColor = Color.Black,
                         focusedIndicatorColor = if (isEndRangeValid) Color(0xFF6200EE) else Color.Red,
                         unfocusedIndicatorColor = if (isEndRangeValid) Color.Gray else Color.Red
@@ -278,7 +298,12 @@ fun DeviceListScreen() {
                         value = selectedModeType.second,
                         onValueChange = {},
                         readOnly = true,
-                        trailingIcon = { Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = "Dropdown Icon") },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowDropDown,
+                                contentDescription = "Dropdown Icon"
+                            )
+                        },
                         label = { Text("Фильтр") }
                     )
 
@@ -310,7 +335,11 @@ fun DeviceListScreen() {
                             scanViewModel.scanLeDevice()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = if (scanning) Color.Red else Color(0xFF6200EE))
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = if (scanning) Color.Red else Color(
+                            0xFF6200EE
+                        )
+                    )
                 ) {
                     val buttonIcon = if (scanning) Icons.Filled.Close else Icons.Filled.Search
                     val buttonLabel = if (scanning) "Завершить" else "Начать"
@@ -337,15 +366,19 @@ fun DeviceListScreen() {
                     LazyColumn(
                         modifier = Modifier.padding(horizontal = 8.dp)
                     ) {
-                        val devicesToShow by derivedStateOf { when (selectedModeType.first) {
-                            DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
-                            DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
-                            DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
+                        val devicesToShow by derivedStateOf {
+                            when (selectedModeType.first) {
+                                DeviceListOption.ALL_DEVICES -> foundedDevice.toList()
+                                DeviceListOption.CHECKED_DEVICES -> checkedDevice.toList()
+                                DeviceListOption.UNCHEKED_DEVICES -> uncheckedDevice.toList()
+                            }
                         }
-                        }
-                        Log.e("ListScreen","devicetoshow $devicesToShow")
+                        Log.e("ListScreen", "devicetoshow $devicesToShow")
                         itemsIndexed(devicesToShow) { index, device ->
-                            DeviceListItem(device.name ?: "Unknown Device", deviceAddress = device.address ?: "Unknown Address")
+                            DeviceListItem(
+                                device.name ?: "Unknown Device",
+                                deviceAddress = device.address ?: "Unknown Address"
+                            )
                             if (index < devicesToShow.lastIndex) {
                                 Divider(color = Color.LightGray, thickness = 1.dp)
                             }

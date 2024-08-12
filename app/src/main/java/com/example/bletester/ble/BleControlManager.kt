@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 class BleControlManager @Inject constructor(context: Context) : BleManager(context) {
-
     private var serialNumber: String = ""
     private var bleCallbackEvent: BleCallbackEvent? = null
     private var connectionTime: Long = 0
@@ -37,8 +36,8 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         this.bleCallbackEvent = bleCallbackEvent
     }
 
-    override fun log(priority: Int, message: String) {
-        Log.println(priority, "BleControlManager", message)
+    override fun log(priority: Int, message: String) { // TODO [RUSLAN]: 💀 lil bro, если что: Log.{TAG(e/i/d/wtf/a)}({tag of log call}, {message to show}). не забудь пжпжпжп
+        Log.println(priority, TAG, message)
     }
 
     override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
@@ -54,13 +53,12 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     override fun initialize() {
         super.initialize()
         connectionTime = System.currentTimeMillis()
-        Log.i("BleControlManager", "BLE connection initialized")
+        Log.i(TAG, "BLE connection initialized")
         setNotificationCallback(controlResponse).with { device: BluetoothDevice, data: Data ->
-            coroutineScope.launch {
-                handleResponseData(device, data.value)
-            }
-            Log.i("BleControlManager", "BLE callback set!")
+            handleResponseData(device, data.value)
+            //Log.i("BleControlManager", "BLE callback set!") 💀 bro hell nah
         }
+        Log.i(TAG, "BLE callback set!")
         updateConnectionParameters()
         enableNotifications(controlResponse).enqueue()
     }
@@ -71,8 +69,8 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         connectedDevice = null
         close()
     }
-    private fun updateConnectionParameters() {
 
+    private fun updateConnectionParameters() {
         requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
     }
 
@@ -81,52 +79,65 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     fun sendCommand(device: BluetoothDevice, command: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {
             entireCheckQueue.add(Pair(device, entireCheck))
-            writeCharacteristic(controlRequest, command.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            writeCharacteristic(
+                controlRequest,
+                command.toByteArray(),
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            )
                 .done {
-                    Log.d("BleControlManager", "Command sent: $command")
+                    Log.d(TAG, "Command sent: $command")
                 }
                 .fail { _, status ->
-                    Log.e("BleControlManager", "Failed to send command: $status")
+                    Log.e(TAG, "Failed to send command: $status")
                 }
                 .enqueue()
         } else {
-            Log.e("BleControlManager", "Device is not connected")
+            Log.e(TAG, "Device is not connected")
         }
     }
 
-       fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
+    fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null && pinAttempts != 2) {
             entireCheckQueue.add(Pair(device, entireCheck))
             val formattedPinCode = "pin.$pinCode"
-            writeCharacteristic(controlRequest, formattedPinCode.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            writeCharacteristic(
+                controlRequest,
+                formattedPinCode.toByteArray(),
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            )
                 .done {
-                    Log.i("BleControlManager", "PIN command sent: $formattedPinCode")
+                    Log.i(TAG, "PIN command sent: $formattedPinCode")
                     pinAttempts = 0
                 }
                 .fail { _, _ ->
-                    Log.e("BleControlManager", "PIN command failed to send")
-                    coroutineScope.launch {
-                        bleCallbackEvent?.onPinCheck(device, "GATT PIN ATTR ERROR")
-                    }
+                    Log.e(TAG, "PIN command failed to send")
+                    bleCallbackEvent?.onPinCheck(device, "GATT PIN ATTR ERROR")
                     pinAttempts++
                 }
                 .enqueue()
         } else {
-            Log.e("BleControlManager", "Device is not connected or controlRequest is null or device is not working")
-            coroutineScope.launch {
-                bleCallbackEvent?.onPinCheck(device, "pin.error")
-            }
+            Log.e(
+                TAG,
+                "Device is not connected or controlRequest is null or device is not working"
+            )
+            bleCallbackEvent?.onPinCheck(device, "pin.error")
         }
     }
 
 
-    private  fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
-        Log.d("BleControlManager", "Handling response data from device: ${device.address}, data: ${data?.contentToString()}")
+    private fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
+        Log.d(
+            TAG,
+            "Handling response data from device: ${device.address}, data: ${data?.contentToString()}"
+        )
         val entireCheck = entireCheckQueue.poll()?.second ?: run {
-            Logger.d("BleControlManager", "Entire check is null for device: ${device.address}")
+            Logger.d(TAG, "Entire check is null for device: ${device.address}")
             return
         }
-        Log.d("BleControlManager", "Handling response for check: $entireCheck on device: ${device.address}")
+        Log.d(
+            TAG,
+            "Handling response for check: $entireCheck on device: ${device.address}"
+        )
         when (entireCheck) {
             EntireCheck.HW_VER -> handleHwVer(data)
             EntireCheck.default_command -> handleDefaultCommand(data)
@@ -134,19 +145,22 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
     }
 
-    private  fun handleHwVer(data: ByteArray?) {
-        Log.d("BleControlManager", "Handling HW version: ${data?.contentToString()}")
+    private fun handleHwVer(data: ByteArray?) {
+        Log.d(TAG, "Handling HW version: ${data?.contentToString()}")
         if (data == null || data.size < 4) {
             Logger.e("BleControlManager", "Received invalid HW version data")
             return
         }
         val endIndex = minOf(20, data.size)
-        val hwVer = String(data.copyOfRange(4, endIndex)).trim().replace("[\\x00-\\x1F]".toRegex(), "")
-        Log.e("BleControlManager","version is :$hwVer")
+        val hwVer =
+            String(data.copyOfRange(4, endIndex)).trim().replace("[\\x00-\\x1F]".toRegex(), "")
+        Log.e(TAG, "version is :$hwVer")
         serialNumber = hwVer
-        Log.i("BleControlManager","callback: $bleCallbackEvent")
-        coroutineScope.launch {
-            connectedDevice?.let { bleCallbackEvent?.onVersionCheck(it, serialNumber) }
+        Log.i(TAG, "callback: $bleCallbackEvent")
+
+        Log.i(TAG, "connectedDevice: $connectedDevice, bleCallbackEvent: $bleCallbackEvent")
+        connectedDevice?.let { // TODO [RUSLAN]: добавил логер для проверки не null, чтоб наверняка
+            bleCallbackEvent?.onVersionCheck(it, serialNumber)
         }
 
     }
@@ -161,28 +175,28 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
     }
 
-    private  fun handlePinCodeResult(data: ByteArray?) {
+    private fun handlePinCodeResult(data: ByteArray?) {
         val pinResponse = data?.toString(Charsets.UTF_8) ?: return
         if (pinResponse.contains("pin.ok")) {
             Logger.d("BleControlManager", "Pin code is correct")
             Log.i("BleControlManager", "callback: $bleCallbackEvent")
-            coroutineScope.launch {
-                connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.ok") }
-            }
+            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.ok") }
+
         } else if (pinResponse.contains("pin.error")) {
-            coroutineScope.launch {
-                connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.error") }
-            }
+            connectedDevice?.let { bleCallbackEvent?.onPinCheck(it, "pin.error") }
         }
-        }
+    }
 
     fun cleanup() {
         coroutineScope.cancel()
     }
 
     companion object {
+        private val TAG = this::class.java.simpleName
         private val UART_SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
-        private val UART_RX_CHARACTERISTIC_UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
-        private val UART_TX_CHARACTERISTIC_UUID = UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+        private val UART_RX_CHARACTERISTIC_UUID =
+            UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
+        private val UART_TX_CHARACTERISTIC_UUID =
+            UUID.fromString("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
     }
 }
