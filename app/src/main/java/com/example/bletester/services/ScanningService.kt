@@ -360,140 +360,138 @@ class ScanningService @Inject constructor(
         }
     }
 
-}
-
-private fun setupBleControlManager(bleControlManager: BleControlManager) {
-    bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
-        @SuppressLint("MissingPermission")
-        override fun onPinCheck(device: BluetoothDevice, pin: String) {
-            CoroutineScope(Dispatchers.IO).launch {// TODO [RUSLAN]: возможно тоже нужно удалить
-                if (pin.contains("pin.ok")) {
-                    Log.i("MyBleCallback", "Pin code is correct for device ${device.name}")
-                    // Выполнение команды
-                    bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
-                    Log.d(
-                        "MyBleCallback",
-                        "sendCommand SERIAL to device ${device.name ?: "Unknown"}"
-                    )
-                } else if (pin.contains("pin.error")) {
-                    Log.e("MyBleCallback", "Pin is error for device ${device.address}")
-                    bannedDevices.add(device)
-                    disconnectAndCleanup(bleControlManager, device)
-                } else if (pin.contains("GATT PIN ATTR ERROR")) {
-                    deviceQueue.add(device)
-                    disconnectAndCleanup(bleControlManager, device)
-                }
-            }
-        }
-
-        override fun onVersionCheck(device: BluetoothDevice, version: String) {
-            Log.e("MyBleCallback", "Version: $version for device ${device.address}")
-            val versionPrefix = version.firstOrNull()
-            val versionNumber = version.substring(1).toLongOrNull()
-
-            if (versionPrefix == null || versionNumber == null) {
-                Log.e("MyBleCallback", "Invalid version format or no connected device")
-                disconnectAndCleanup(bleControlManager, device)
-                return
-            }
-
-            if (versionNumber in startR..endR &&
-                versionPrefix.toString().contains(letter)
-            ) {
-                if (checkedDevices.none { it.address == device.address }) {
-                    checkedDevices.add(device)
-                    Log.i("MyBleCallback", "Device added: ${device.address}")
-                } else {
-                    Log.e(
-                        "MyBleCallback",
-                        "Device with the same address already exists: ${device.address}"
-                    )
-                }
-                unCheckedDevices.remove(device)
-
-                // Обновление файлов и отправка команды
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        iniUtil.updateSummaryFileDynamically(checkedDevices.size)
-                        iniUtil.updateCurrentFileDynamically(device)
-                    } catch (e: Exception) {
-                        Log.e("MyBleCallback", "Error updating summary file: ${e.message}")
+    private fun setupBleControlManager(bleControlManager: BleControlManager) {
+        bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
+            @SuppressLint("MissingPermission")
+            override fun onPinCheck(device: BluetoothDevice, pin: String) {
+                CoroutineScope(Dispatchers.IO).launch {// TODO [RUSLAN]: возможно тоже нужно удалить
+                    if (pin.contains("pin.ok")) {
+                        Log.i("MyBleCallback", "Pin code is correct for device ${device.name}")
+                        // Выполнение команды
+                        bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
+                        Log.d(
+                            "MyBleCallback",
+                            "sendCommand SERIAL to device ${device.name ?: "Unknown"}"
+                        )
+                    } else if (pin.contains("pin.error")) {
+                        Log.e("MyBleCallback", "Pin is error for device ${device.address}")
+                        bannedDevices.add(device)
+                        disconnectAndCleanup(bleControlManager, device)
+                    } else if (pin.contains("GATT PIN ATTR ERROR")) {
+                        deviceQueue.add(device)
+                        disconnectAndCleanup(bleControlManager, device)
                     }
                 }
-                bleControlManager.sendCommand(
-                    device,
-                    "ble.off",
-                    EntireCheck.default_command
-                )
-                disconnectAndCleanup(bleControlManager, device)
-            } else {
-                Log.d(
-                    "MyBleCallback",
-                    "Device serial number out of range. Added to banned list."
-                )
-                bannedDevices.add(device)
-                disconnectAndCleanup(bleControlManager, device)
             }
-        }
-    })
-}
 
+            override fun onVersionCheck(device: BluetoothDevice, version: String) {
+                Log.e("MyBleCallback", "Version: $version for device ${device.address}")
+                val versionPrefix = version.firstOrNull()
+                val versionNumber = version.substring(1).toLongOrNull()
 
-private fun disconnectAndCleanup(
-    bleControlManager: BleControlManager,
-    device: BluetoothDevice?
-) {
-    CoroutineScope(Dispatchers.IO).launch {
-        bleControlManager.disconnect().await()
-        bleControlManager.cleanup()
-        device?.let { bleControlManagers.remove(it.address) }
-        bleControlManager.setBleCallbackEvent(null)
-    }
-}
+                if (versionPrefix == null || versionNumber == null) {
+                    Log.e("MyBleCallback", "Invalid version format or no connected device")
+                    disconnectAndCleanup(bleControlManager, device)
+                    return
+                }
 
-override fun onEvent(event: String) { // TODO сделай через enum пж бля кринж
-    when {
-        event.contains("Modify") -> {
-            if (scanning.value) {
-                stopScanning()
-                Log.e(TAG, "Scanning stop from onEvent Modify")
-                updateReportViewModel("Auto")
-            }
-        }
+                if (versionNumber in startR..endR &&
+                    versionPrefix.toString().contains(letter)
+                ) {
+                    if (checkedDevices.none { it.address == device.address }) {
+                        checkedDevices.add(device)
+                        Log.i("MyBleCallback", "Device added: ${device.address}")
+                    } else {
+                        Log.e(
+                            "MyBleCallback",
+                            "Device with the same address already exists: ${device.address}"
+                        )
+                    }
+                    unCheckedDevices.remove(device)
 
-        event.contains("Deleted") -> {
-            if (scanning.value) {
-                stopScanning()
-                Log.e(TAG, "Scanning stop from onEvent Deleted")
-                updateReportViewModel("Auto")
-            }
-        }
-
-        event.contains("Auto") -> {
-            letter = deviceTypeToLetter[sharedData.typeOfDevice.value.toString()].toString()
-            deviceTypeLetter.value = letter
-            Log.e("ScanViewModelEvent", "letter is: $letter")
-            sharedData.addressRange.value?.let { range ->
-                val start = range.first.toLongOrNull()
-                val end = range.second.toLongOrNull()
-                if (start != null && end != null) {
-                    scanLeDevice(letter, start, end)
+                    // Обновление файлов и отправка команды
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            iniUtil.updateSummaryFileDynamically(checkedDevices.size)
+                            iniUtil.updateCurrentFileDynamically(device)
+                        } catch (e: Exception) {
+                            Log.e("MyBleCallback", "Error updating summary file: ${e.message}")
+                        }
+                    }
+                    bleControlManager.sendCommand(
+                        device,
+                        "ble.off",
+                        EntireCheck.default_command
+                    )
+                    disconnectAndCleanup(bleControlManager, device)
                 } else {
-                    Log.e(TAG, "Invalid address range, retrying in 1 second")
+                    Log.d(
+                        "MyBleCallback",
+                        "Device serial number out of range. Added to banned list."
+                    )
+                    bannedDevices.add(device)
+                    disconnectAndCleanup(bleControlManager, device)
+                }
+            }
+        })
+    }
+
+
+    private fun disconnectAndCleanup(
+        bleControlManager: BleControlManager,
+        device: BluetoothDevice?
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            bleControlManager.disconnect().await()
+            bleControlManager.cleanup()
+            device?.let { bleControlManagers.remove(it.address) }
+            bleControlManager.setBleCallbackEvent(null)
+        }
+    }
+
+    override fun onEvent(event: String) { // TODO сделай через enum пж бля кринж
+        when {
+            event.contains("Modify") -> {
+                if (scanning.value) {
+                    stopScanning()
+                    Log.e(TAG, "Scanning stop from onEvent Modify")
+                    updateReportViewModel("Auto")
+                }
+            }
+
+            event.contains("Deleted") -> {
+                if (scanning.value) {
+                    stopScanning()
+                    Log.e(TAG, "Scanning stop from onEvent Deleted")
+                    updateReportViewModel("Auto")
+                }
+            }
+
+            event.contains("Auto") -> {
+                letter = deviceTypeToLetter[sharedData.typeOfDevice.value.toString()].toString()
+                deviceTypeLetter.value = letter
+                Log.e("ScanViewModelEvent", "letter is: $letter")
+                sharedData.addressRange.value?.let { range ->
+                    val start = range.first.toLongOrNull()
+                    val end = range.second.toLongOrNull()
+                    if (start != null && end != null) {
+                        scanLeDevice(letter, start, end)
+                    } else {
+                        Log.e(TAG, "Invalid address range, retrying in 1 second")
+                        connectionScope.launch {
+                            delay(1000)
+                            onEvent("Auto") // Повторяем попытку через секунду
+                        }
+                    }
+                } ?: run {
+                    Log.e(TAG, "Address range is null, retrying in 1 second")
                     connectionScope.launch {
                         delay(1000)
                         onEvent("Auto") // Повторяем попытку через секунду
                     }
                 }
-            } ?: run {
-                Log.e(TAG, "Address range is null, retrying in 1 second")
-                connectionScope.launch {
-                    delay(1000)
-                    onEvent("Auto") // Повторяем попытку через секунду
-                }
             }
         }
     }
-}
 }
 
