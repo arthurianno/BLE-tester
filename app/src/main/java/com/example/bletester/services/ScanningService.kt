@@ -30,6 +30,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CopyOnWriteArraySet
 import javax.inject.Inject
 
 private const val MAX_CONNECTIONS = 3
@@ -50,9 +52,10 @@ class ScanningService @Inject constructor(
 
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
-    var foundDevices = mutableSetOf<BluetoothDevice>()
-    val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
-    val checkedDevices = mutableStateListOf<BluetoothDevice>()
+    var foundDevices = CopyOnWriteArraySet<BluetoothDevice>()
+    val unCheckedDevices = CopyOnWriteArrayList<BluetoothDevice>()
+    val checkedDevices = CopyOnWriteArrayList<BluetoothDevice>()
+    var bannedDevices = CopyOnWriteArrayList<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
@@ -62,7 +65,6 @@ class ScanningService @Inject constructor(
     private var startR: Long = 0L
     private var endR: Long = 0L
     private var counter = 0
-    var bannedDevices = mutableStateListOf<BluetoothDevice>()
     private var letter = ""
     private var isFirstConnect = true
     val deviceTypeLetter = MutableStateFlow("")
