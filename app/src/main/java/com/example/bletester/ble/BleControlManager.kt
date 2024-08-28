@@ -13,9 +13,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import no.nordicsemi.android.ble.BleManager
-import no.nordicsemi.android.ble.ConnectionPriorityRequest
 import no.nordicsemi.android.ble.data.Data
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -51,30 +51,34 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         return controlRequest != null && controlResponse != null
     }
 
+    @SuppressLint("MissingPermission")
     override fun initialize() {
         super.initialize()
         connectionTime = System.currentTimeMillis()
         Log.i(TAG, "BLE connection initialized")
         setNotificationCallback(controlResponse).with { device: BluetoothDevice, data: Data ->
-            handleResponseData(device, data.value)
+            coroutineScope.launch {
+                Log.i(TAG,"RESPONSE FROM ${device.name} : ${device.address}  data : $data")
+                handleResponseData(device, data.value)
+            }
         }
         Log.i(TAG, "BLE callback set!")
-        updateConnectionParameters()
-        enableNotifications(controlResponse).enqueue()
+            enableNotifications(controlResponse).done {
+                Log.i(TAG,"NOTIFICATION ENABLED for device $connectedDevice")
+            }
+                .fail { device, status ->
+                    Log.i(TAG,"NOTIFICATION  NOT ENABLED FOR $device with status $status")
+                }
+                .enqueue()
     }
 
     override fun onServicesInvalidated() {
+        removeNotificationCallback(controlResponse)
         controlRequest = null
         controlResponse = null
         connectedDevice = null
         close()
     }
-
-    private fun updateConnectionParameters() {
-        requestConnectionPriority(ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH)
-    }
-
-    fun getConnectedDevice(): BluetoothDevice? = connectedDevice
 
     fun sendCommand(device: BluetoothDevice, command: String, entireCheck: EntireCheck) {
         if (isConnected && controlRequest != null) {
@@ -96,8 +100,10 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
     }
 
-    fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
+     fun sendPinCommand(device: BluetoothDevice, pinCode: String, entireCheck: EntireCheck) {
+        Log.i(TAG, "PIN command pre sent:  to $device")
         if (isConnected && controlRequest != null && pinAttempts != 2) {
+            Log.i(TAG, "PIN command sending:  to $device")
             entireCheckQueue.add(Pair(device, entireCheck))
             val formattedPinCode = "pin.$pinCode"
             writeCharacteristic(
@@ -106,11 +112,11 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             )
                 .done {
-                    Log.i(TAG, "PIN command sent: $formattedPinCode")
+                    Log.i(TAG, "PIN command sent: $formattedPinCode to device $device")
                     pinAttempts = 0
                 }
                 .fail { _, _ ->
-                    Log.e(TAG, "PIN command failed to send")
+                    Log.e(TAG, "PIN command failed to send to device $device")
                     bleCallbackEvent?.onPinCheck(device, "GATT PIN ATTR ERROR")
                     pinAttempts++
                 }
@@ -125,25 +131,26 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
     }
 
 
+    @SuppressLint("MissingPermission")
     private fun handleResponseData(device: BluetoothDevice, data: ByteArray?) {
         Log.d(
             TAG,
-            "Handling response data from device: ${device.address}, data: ${data?.contentToString()}"
+            "Handling response data from device: ${device.name}, data: ${data?.contentToString()}"
         )
         val entireCheck = entireCheckQueue.poll()?.second ?: run {
-            Logger.d(TAG, "Entire check is null for device: ${device.address}")
+            Logger.d(TAG, "Entire check is null for device: ${device.name}")
             return
         }
         Log.d(
             TAG,
-            "Handling response for check: $entireCheck on device: ${device.address}"
+            "Handling response for check: $entireCheck on device: ${device.name}"
         )
         when (entireCheck) {
             EntireCheck.HW_VER -> handleHwVer(data)
             EntireCheck.default_command -> handleDefaultCommand(data)
             EntireCheck.PIN_C0DE -> handlePinCodeResult(data)
         }
-    }
+        }
 
     private fun handleHwVer(data: ByteArray?) {
         Log.d(TAG, "Handling HW version: ${data?.contentToString()}")

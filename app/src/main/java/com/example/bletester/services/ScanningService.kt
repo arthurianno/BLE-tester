@@ -310,6 +310,7 @@ class ScanningService @Inject constructor(
 
                     bleControlManagers[currentDevice.address] = bleControlManager
                     connectionScope.launch {
+                        delay(500)
                         connectToDevice(currentDevice, bleControlManagers[currentDevice.address]!!)
                     }
                 }
@@ -328,7 +329,7 @@ class ScanningService @Inject constructor(
         bleControlManager: BleControlManager
     ) = withTimeout(10000) {
         try {
-            bleControlManager.connect(device).await()
+            bleControlManager.connect(device).retry(2,50).await()
 
             // Теперь, когда соединение установлено, выполняем действия
             Log.d(TAG, "Connected to device ${device.name ?: "Unknown"}")
