@@ -10,7 +10,6 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.compose.runtime.mutableStateListOf
 import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.core.DeviceProcessor
@@ -34,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
 import javax.inject.Inject
 
-private const val MAX_CONNECTIONS = 3
+private const val MAX_CONNECTIONS = 1
 
 @Suppress("DEPRECATION")
 class ScanningService @Inject constructor(
@@ -66,11 +65,9 @@ class ScanningService @Inject constructor(
     private var endR: Long = 0L
     private var counter = 0
     private var letter = ""
-    private var isFirstConnect = true
     val deviceTypeLetter = MutableStateFlow("")
     private var currentCount: Int = 0
-    private var refreshValue = sharedData.refreshAdapterValue.value
-
+    private var currentDevice: BluetoothDevice? = null
 
     private val deviceTypeToLetter = mapOf(
         "Online" to "D",
@@ -169,7 +166,6 @@ class ScanningService @Inject constructor(
         currentCount = 0
         scanning.value = false
         letter = ""
-        isFirstConnect = true
         Log.i(TAG, "Остановка сканирования")
         bluetoothLeScanner?.stopScan(leScanCallback())
         connectionScope.cancel()
@@ -177,51 +173,13 @@ class ScanningService @Inject constructor(
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
             deviceQueue.clear()
-            //checkedDevices.clear()
+            checkedDevices.clear()
+            currentDevice = null
             bleControlManagers.clear()
             Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
         }
     }
 
-    @SuppressLint("MissingPermission")
-    fun resetBtCache() {
-        currentCount = 0
-        bluetoothLeScanner?.stopScan(leScanCallback())
-
-        bleControlManagers.values.forEach { manager ->
-            if (manager.isConnected) {
-                try {
-                    manager.disconnect().await()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error disconnecting device: ${e.message}")
-                }
-            }
-        }
-
-        restartBluetoothAdapter()
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun restartBluetoothAdapter() {
-        if (adapter?.isEnabled == true) {
-            adapter.disable()
-            Log.d(TAG, "Отключение адаптера")
-            // Wait for Bluetooth to turn off
-            while (adapter.state != BluetoothAdapter.STATE_OFF) {
-                Thread.sleep(100)
-            }
-        }
-        adapter?.enable()
-        Log.d(TAG, "Включение адаптера")
-        // Wait for Bluetooth to turn on
-        while (adapter?.state != BluetoothAdapter.STATE_ON) {
-            Thread.sleep(100)
-        }
-        bluetoothLeScanner?.startScan(filters, settings, leScanCallback()) ?: Log.e(
-            TAG,
-            "BluetoothLeScanner равен null"
-        )
-    }
 
 
     @SuppressLint("MissingPermission")
@@ -283,20 +241,11 @@ class ScanningService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     private suspend fun processNextDevice() {
-        if (refreshValue != sharedData.refreshAdapterValue.value) {
-            refreshValue = sharedData.refreshAdapterValue.value
-        }
-        Log.d(TAG, "refreshValue: $refreshValue")
-        if (refreshValue != null && refreshValue!! > 0 && currentCount == refreshValue) {
-            resetBtCache()
-        } else if (refreshValue != null && refreshValue!! < currentCount && refreshValue!! > 0) {
-            resetBtCache()
-        } else {
             if (deviceQueue.isNotEmpty() && bleControlManagers.size < MAX_CONNECTIONS) {
                 val currentDevice = deviceQueue.poll() ?: return
                 Log.d(
                     TAG,
-                    "Processing device: ${currentDevice.address}, currentCount: $currentCount, refreshValue: $refreshValue"
+                    "Processing device: ${currentDevice.address}, currentCount: $currentCount"
                 )
                 if (currentDevice.name == null) {
                     Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
@@ -307,12 +256,8 @@ class ScanningService @Inject constructor(
                     setupBleControlManager(bleControlManager)
                     currentCount++
                     sharedPreferences.edit().putInt("count_current", currentCount).apply()
-
                     bleControlManagers[currentDevice.address] = bleControlManager
-                    connectionScope.launch {
-                        delay(500)
-                        connectToDevice(currentDevice, bleControlManagers[currentDevice.address]!!)
-                    }
+                    connectToDevice(currentDevice, bleControlManagers[currentDevice.address]!!)
                 }
             } else {
                 Log.e(
@@ -321,7 +266,7 @@ class ScanningService @Inject constructor(
                 )
             }
         }
-    }
+
 
     @SuppressLint("MissingPermission")
     private suspend fun connectToDevice(
@@ -331,7 +276,6 @@ class ScanningService @Inject constructor(
         try {
             bleControlManager.connect(device).retry(2,50).await()
 
-            // Теперь, когда соединение установлено, выполняем действия
             Log.d(TAG, "Connected to device ${device.name ?: "Unknown"}")
             bleControlManager.sendPinCommand(device, "master", EntireCheck.PIN_C0DE)
             Log.d(TAG, "sendPinCommand to device ${device.name ?: "Unknown"}")
@@ -401,7 +345,6 @@ class ScanningService @Inject constructor(
                     }
                     unCheckedDevices.remove(device)
 
-                    // Обновление файлов и отправка команды
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
                             iniUtil.updateSummaryFileDynamically(checkedDevices.size)

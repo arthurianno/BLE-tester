@@ -79,7 +79,6 @@ dependencies {
     implementation("no.nordicsemi.android:ble:2.7.5")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")
     implementation ("com.google.code.gson:gson:2.10.1")
-
     implementation("androidx.compose.runtime:runtime-livedata:1.6.8")
     implementation("no.nordicsemi.android:ble-livedata:2.7.5")
     implementation("org.ini4j:ini4j:0.5.4")
