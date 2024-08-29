@@ -36,6 +36,7 @@ object AppModule {
     }
 
     @Provides
+    @Singleton
     fun provideBleControlManager(@ApplicationContext context: Context): BleControlManager {
         return BleControlManager(context)
     }
@@ -86,14 +87,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideScanningService(
-        @ApplicationContext context: Context,
         reportViewModel: ReportViewModel,
         deviceProcessor: DeviceProcessor,
         sharedData: SharedData,
         iniUtil: IniUtil,
-        sharedPreferences: SharedPreferences
+        sharedPreferences: SharedPreferences,
+        bleControlManager: BleControlManager
     ): ScanningService {
-        return ScanningService(context, reportViewModel, deviceProcessor, sharedData, iniUtil, sharedPreferences)
+        return ScanningService(reportViewModel, deviceProcessor, sharedData, iniUtil, sharedPreferences,bleControlManager)
     }
 
     @Provides
