@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
 import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.core.DeviceProcessor
@@ -51,10 +52,10 @@ class ScanningService @Inject constructor(
 
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
-    var foundDevices = CopyOnWriteArraySet<BluetoothDevice>()
-    val unCheckedDevices = CopyOnWriteArrayList<BluetoothDevice>()
-    val checkedDevices = CopyOnWriteArrayList<BluetoothDevice>()
-    var bannedDevices = CopyOnWriteArrayList<BluetoothDevice>()
+    var foundDevices = mutableSetOf<BluetoothDevice>()
+    val unCheckedDevices =  mutableStateListOf<BluetoothDevice>()
+    val checkedDevices = mutableStateListOf<BluetoothDevice>()
+    var bannedDevices =  mutableStateListOf<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
@@ -168,7 +169,7 @@ class ScanningService @Inject constructor(
         letter = ""
         Log.i(TAG, "Остановка сканирования")
         bluetoothLeScanner?.stopScan(leScanCallback())
-        connectionScope.cancel()
+        //connectionScope.cancel()
         CoroutineScope(Dispatchers.IO).launch {
             bleControlManagers.values.forEach { it.disconnect().enqueue() }
             foundDevices.clear()
@@ -377,7 +378,9 @@ class ScanningService @Inject constructor(
         device: BluetoothDevice?
     ) {
         CoroutineScope(Dispatchers.IO).launch {
-            bleControlManager.disconnect().await()
+            if(bleControlManager.isConnected){
+                bleControlManager.disconnect().await()
+            }
             bleControlManager.cleanup()
             device?.let { bleControlManagers.remove(it.address) }
             //bleControlManager.setBleCallbackEvent(null)
