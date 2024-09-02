@@ -143,6 +143,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
         }
         }
 
+    @SuppressLint("MissingPermission")
     private fun handleHwVer(data: ByteArray?) {
         Log.d(TAG, "Handling HW version: ${data?.contentToString()}")
         if (data == null || data.size < 4) {
@@ -153,7 +154,7 @@ class BleControlManager @Inject constructor(context: Context) : BleManager(conte
             String(data.copyOfRange(4, endIndex)).trim().replace("[\\x00-\\x1F]".toRegex(), "")
         Log.e(TAG, "version is :$hwVer")
         serialNumber = hwVer
-        Log.i(TAG, "connectedDevice: $connectedDevice, bleCallbackEvent: $bleCallbackEvent")
+        Log.i(TAG, "connectedDevice: ${connectedDevice is BluetoothDevice}, bleCallbackEvent: $bleCallbackEvent")
         connectedDevice?.let {
             bleCallbackEvent?.onVersionCheck(it, serialNumber)
         }

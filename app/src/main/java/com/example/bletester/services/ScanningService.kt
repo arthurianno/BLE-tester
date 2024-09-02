@@ -10,6 +10,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import com.example.bletester.ble.BleCallbackEvent
 import com.example.bletester.ble.BleControlManager
 import com.example.bletester.core.DeviceProcessor
@@ -52,7 +53,8 @@ class ScanningService @Inject constructor(
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
     var foundDevices = mutableSetOf<BluetoothDevice>()
     val unCheckedDevices =  mutableStateListOf<BluetoothDevice>()
-    val checkedDevices = mutableStateListOf<BluetoothDevice>()
+    val checkedDevices = mutableListOf<BluetoothDevice>()
+    val checkedDevicesUi = mutableStateListOf<String>()
     var bannedDevices =  mutableStateListOf<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
@@ -120,6 +122,7 @@ class ScanningService @Inject constructor(
             approvedMacs.forEachIndexed { _, mac ->
                 val device = adapter?.getRemoteDevice(mac)
                 if (device != null && !checkedDevices.any { it.address == device.address }) {
+                    Log.i(TAG,"Device is ${device.name} and ${device.address}")
                     checkedDevices.add(device)
                 }
             }
@@ -155,6 +158,7 @@ class ScanningService @Inject constructor(
                 "BluetoothLeScanner равен null"
             )
             Log.i(TAG, "Сканирование начато")
+            Log.i(TAG, " first connect: $isFirstConnect")
             Logger.i(TAG, "Сканирование начато")
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
@@ -255,7 +259,7 @@ class ScanningService @Inject constructor(
                 }
                 if (currentDevice.address !in bannedDevices.map { it.address }) {
                     currentCount++
-                    sharedPreferences.edit().putInt("count_current", currentCount).apply()
+                    //sharedPreferences.edit().putInt("count_current", currentCount).apply()
                     connectionScope.launch {
                         connectToDevice(currentDevice)
                     }
@@ -311,8 +315,9 @@ class ScanningService @Inject constructor(
                     }
             }
 
+            @SuppressLint("MissingPermission")
             override fun onVersionCheck(device: BluetoothDevice, version: String) {
-                Log.e("MyBleCallback", "Version: $version for device ${device.address}")
+                Log.e("MyBleCallback", "Version: $version for device ${device.name}")
                 val versionPrefix = version.firstOrNull()
                 val versionNumber = version.substring(1).toLongOrNull()
 
@@ -327,7 +332,10 @@ class ScanningService @Inject constructor(
                 ) {
                     if (checkedDevices.none { it.address == device.address }) {
                         checkedDevices.add(device)
-                    } else { Log.e("MyBleCallback", "Device with the same address already exists: ${device.address}")
+                        checkedDevicesUi.add(device.name)
+                        Log.d("ScanningService", "Devices in checkedDevices: ${checkedDevices.map { it.name to it.address }}")
+                        Log.e(TAG, "Device : $device")
+                    } else { Log.e(TAG, "Device with the same address already exists: ${device.address}")
                     }
                     unCheckedDevices.remove(device)
 

@@ -3,6 +3,7 @@ package com.example.bletester.ui.theme.devicesList
 import android.bluetooth.BluetoothDevice
 import android.util.Log
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bletester.services.ScanningService
@@ -28,7 +29,7 @@ class ScanViewModel @Inject constructor(
     val toastMessage = scanningService.toastMessage
     val foundDevices = scanningService.foundDevices
     val unCheckedDevices = scanningService.unCheckedDevices
-    val checkedDevices = scanningService.checkedDevices
+    val checkedDevices = scanningService.checkedDevicesUi
     val scanning = scanningService.scanning
     val progress = MutableStateFlow(0f)
     private val deviceTypeLetter = scanningService.deviceTypeLetter

@@ -1,5 +1,7 @@
 package com.example.bletester.items
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,8 +21,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@SuppressLint("MissingPermission")
 @Composable
-fun DeviceListItem(deviceName: String, deviceAddress: String) {
+fun DeviceListItem(device: String) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
@@ -35,14 +38,14 @@ fun DeviceListItem(deviceName: String, deviceAddress: String) {
             modifier = Modifier.padding(10.dp)
         ) {
             Text(
-                text = "Device Name: $deviceName",
+                text = "Device Name: $device",
                 fontFamily = FontFamily.Serif,
                 fontSize = 14.sp,
                 color = if (expanded) Color.Blue else Color.Black,
             )
             if (expanded) {
                 Text(
-                    text = "MAC Address: $deviceAddress",
+                    text = "MAC Address: None",
                     fontFamily = FontFamily.Serif,
                     fontSize = 14.sp,
                     color = Color.Gray,
