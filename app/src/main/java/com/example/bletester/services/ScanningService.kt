@@ -158,7 +158,7 @@ class ScanningService @Inject constructor(
                 "BluetoothLeScanner равен null"
             )
             Log.i(TAG, "Сканирование начато")
-            Log.i(TAG, " first connect: $isFirstConnect")
+            Log.i(TAG, " first connect to: $isFirstConnect")
             Logger.i(TAG, "Сканирование начато")
         } else {
             Log.w(TAG, "Сканирование уже выполняется")
