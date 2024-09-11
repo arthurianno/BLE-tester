@@ -20,20 +20,10 @@ import com.example.bletester.ui.theme.report.ReportViewModel
 import com.example.bletester.utils.FileModifyEvent
 import com.example.bletester.utils.IniUtil
 import com.example.bletester.utils.SharedData
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
-
 
 @Suppress("DEPRECATION")
 class ScanningService @Inject constructor(
@@ -52,10 +42,10 @@ class ScanningService @Inject constructor(
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
     var foundDevices = mutableSetOf<BluetoothDevice>()
-    val unCheckedDevices =  mutableStateListOf<BluetoothDevice>()
+    val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
     val checkedDevices = mutableListOf<BluetoothDevice>()
     val checkedDevicesUi = mutableStateListOf<String>()
-    var bannedDevices =  mutableStateListOf<BluetoothDevice>()
+    var bannedDevices = mutableStateListOf<BluetoothDevice>()
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private val bluetoothLeScanner = adapter?.bluetoothLeScanner
     private val settings: ScanSettings
@@ -92,17 +82,14 @@ class ScanningService @Inject constructor(
         setupBleControlManager(bleControlManager)
     }
 
-    private fun buildSettings() =
-        ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
-            .build()
+    private fun buildSettings() = ScanSettings.Builder()
+        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+        .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+        .build()
 
-    private fun buildFilter() =
-        listOf(
-            ScanFilter.Builder()
-                .build()
-        )
+    private fun buildFilter() = listOf(
+        ScanFilter.Builder().build()
+    )
 
     @SuppressLint("MissingPermission")
     fun scanLeDevice(letter: String, start: Long, end: Long) {
@@ -114,16 +101,16 @@ class ScanningService @Inject constructor(
         sharedData.typeOfDevice.value = typeOfLetterForReport
         Log.d(TAG, "Device type for report: $typeOfLetterForReport")
 
-        // Загрузка одобренных устройств из current.ini
         val (approvedMacs, _, savedRange) = iniUtil.loadApprovedDevicesFromCurrentReport()
         if (savedRange != null && savedRange.first.toLong() == start && savedRange.second.toLong() == end) {
             Log.i(TAG, "Диапазон совпадает с сохраненным. Загружаем одобренные устройства.")
             checkedDevices.clear()
-            approvedMacs.forEachIndexed { _, mac ->
-                val device = adapter?.getRemoteDevice(mac)
-                if (device != null && !checkedDevices.any { it.address == device.address }) {
-                    Log.i(TAG,"Device is ${device.name} and ${device.address}")
-                    checkedDevices.add(device)
+            approvedMacs.forEach { mac ->
+                adapter?.getRemoteDevice(mac)?.let { device ->
+                    if (checkedDevices.none { it.address == device.address }) {
+                        Log.i(TAG, "Device is ${device.name} and ${device.address}")
+                        checkedDevices.add(device)
+                    }
                 }
             }
             Log.i(TAG, "Загружено ${approvedMacs.size} одобренных устройств.")
@@ -134,9 +121,7 @@ class ScanningService @Inject constructor(
             checkedDevices.clear()
         }
 
-        // Остальная часть функции остается без изменений
-        toastMessage.value =
-            "Сканирование!"
+        toastMessage.value = "Сканирование!"
         iniUtil.isFirstUpdate = true
         startR = start
         endR = end
@@ -150,7 +135,7 @@ class ScanningService @Inject constructor(
 
         if (!scanning.value) {
             scanning.value = true
-            if (!connectionScope.isActive){
+            if (!connectionScope.isActive) {
                 connectionScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             }
             bluetoothLeScanner?.startScan(filters, settings, leScanCallback()) ?: Log.e(
@@ -178,19 +163,16 @@ class ScanningService @Inject constructor(
         bluetoothLeScanner?.stopScan(leScanCallback())
         connectionScope.cancel()
         CoroutineScope(Dispatchers.IO).launch {
-            if(bleControlManager.isConnected){
+            if (bleControlManager.isConnected) {
                 bleControlManager.disconnect().await()
             }
             bleControlManager.close()
             foundDevices.clear()
             deviceQueue.clear()
-            //checkedDevices.clear()
             currentDevice = null
             Log.d(TAG, "Сканирование остановлено и очередь устройств очищена")
         }
     }
-
-
 
     @SuppressLint("MissingPermission")
     private fun leScanCallback() = object : ScanCallback() {
@@ -216,7 +198,7 @@ class ScanningService @Inject constructor(
                     device.address !in checkedDevices.map { it.address }) {
                     deviceQueue.add(device)
                     foundDevices.add(device)
-                    if(isFirstConnect){
+                    if (isFirstConnect) {
                         isFirstConnect = false
                         startConnectionProcess()
                     }
@@ -236,43 +218,39 @@ class ScanningService @Inject constructor(
     }
 
     private fun startConnectionProcess() {
-            Log.e(TAG, "counter : $counter, value scanning: ${scanning.value}, ")
-            if (scanning.value && (deviceQueue.isNotEmpty() || counter > 0)) {
-                processNextDevice()
-            }
-            if (foundDevices.isEmpty() && counter == 0) {
-                stopScanning()
-                updateReportViewModel("Auto")
-            }
-
+        Log.e(TAG, "counter : $counter, value scanning: ${scanning.value}, ")
+        if (scanning.value && (deviceQueue.isNotEmpty() || counter > 0)) {
+            processNextDevice()
+        }
+        if (foundDevices.isEmpty() && counter == 0) {
+            stopScanning()
+            updateReportViewModel("Auto")
+        }
     }
 
-
     @SuppressLint("MissingPermission")
-    private  fun processNextDevice() {
-            if (deviceQueue.isNotEmpty()) {
-                val currentDevice = deviceQueue.poll() ?: return
-                Log.d(TAG, "Processing device: ${currentDevice.address}, currentCount: $currentCount")
-                if (currentDevice.name == null) {
-                    Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
-                    return
-                }
-                if (currentDevice.address !in bannedDevices.map { it.address }) {
-                    currentCount++
-                    //sharedPreferences.edit().putInt("count_current", currentCount).apply()
-                    connectionScope.launch {
-                        connectToDevice(currentDevice)
-                    }
-                }
-            } else {
-                Log.e(TAG, "Error: Queue is empty: ${deviceQueue.isEmpty()}")
-                isFirstConnect = true
+    private fun processNextDevice() {
+        if (deviceQueue.isNotEmpty()) {
+            val currentDevice = deviceQueue.poll() ?: return
+            Log.d(TAG, "Processing device: ${currentDevice.address}, currentCount: $currentCount")
+            if (currentDevice.name == null) {
+                Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
+                return
             }
+            if (currentDevice.address !in bannedDevices.map { it.address }) {
+                currentCount++
+                connectionScope.launch {
+                    connectToDevice(currentDevice)
+                }
+            }
+        } else {
+            Log.e(TAG, "Error: Queue is empty: ${deviceQueue.isEmpty()}")
+            isFirstConnect = true
         }
-
+    }
 
     @SuppressLint("MissingPermission")
-    private  fun connectToDevice(device: BluetoothDevice) {
+    private fun connectToDevice(device: BluetoothDevice) {
         try {
             bleControlManager.connect(device).retry(2, 200).await()
             Log.d(TAG, "Connected to device ${device.name ?: "Unknown"}")
@@ -297,22 +275,22 @@ class ScanningService @Inject constructor(
         bleControlManager.setBleCallbackEvent(object : BleCallbackEvent {
             @SuppressLint("MissingPermission")
             override fun onPinCheck(device: BluetoothDevice, pin: String) {
-                    if (pin.contains("pin.ok")) {
+                when {
+                    pin.contains("pin.ok") -> {
                         Log.i("MyBleCallback", "Pin code is correct for device ${device.name}")
-                        // Выполнение команды
                         bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
-                        Log.d(
-                            "MyBleCallback",
-                            "sendCommand SERIAL to device ${device.name ?: "Unknown"}"
-                        )
-                    } else if (pin.contains("pin.error")) {
+                        Log.d("MyBleCallback", "sendCommand SERIAL to device ${device.name ?: "Unknown"}")
+                    }
+                    pin.contains("pin.error") -> {
                         Log.e("MyBleCallback", "Pin is error for device ${device.address}")
                         bannedDevices.add(device)
                         disconnectAndCleanup()
-                    } else if (pin.contains("GATT PIN ATTR ERROR")) {
+                    }
+                    pin.contains("GATT PIN ATTR ERROR") -> {
                         deviceQueue.add(device)
                         disconnectAndCleanup()
                     }
+                }
             }
 
             @SuppressLint("MissingPermission")
@@ -327,15 +305,14 @@ class ScanningService @Inject constructor(
                     return
                 }
 
-                if (versionNumber in startR..endR &&
-                    versionPrefix.toString().contains(letter)
-                ) {
+                if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
                     if (checkedDevices.none { it.address == device.address }) {
                         checkedDevices.add(device)
                         checkedDevicesUi.add(device.name)
                         Log.d("ScanningService", "Devices in checkedDevices: ${checkedDevices.map { it.name to it.address }}")
                         Log.e(TAG, "Device : $device")
-                    } else { Log.e(TAG, "Device with the same address already exists: ${device.address}")
+                    } else {
+                        Log.e(TAG, "Device with the same address already exists: ${device.address}")
                     }
                     unCheckedDevices.remove(device)
 
@@ -347,17 +324,10 @@ class ScanningService @Inject constructor(
                             Log.e("MyBleCallback", "Error updating summary file: ${e.message}")
                         }
                     }
-                    bleControlManager.sendCommand(
-                        device,
-                        "ble.off",
-                        EntireCheck.default_command
-                    )
+                    bleControlManager.sendCommand(device, "ble.off", EntireCheck.default_command)
                     disconnectAndCleanup()
                 } else {
-                    Log.d(
-                        "MyBleCallback",
-                        "Device serial number out of range. Added to banned list."
-                    )
+                    Log.d("MyBleCallback", "Device serial number out of range. Added to banned list.")
                     bannedDevices.add(device)
                     disconnectAndCleanup()
                 }
@@ -365,18 +335,15 @@ class ScanningService @Inject constructor(
         })
     }
 
-
     private fun disconnectAndCleanup() {
-            if(bleControlManager.isConnected){
-                bleControlManager.disconnect().done {
-                    Log.i(TAG,"Disconnect done!")
-                    startConnectionProcess()
-                }.fail { device, status ->
-                    Log.e(TAG,"Disconnect fail! $device and $status")
-                }.enqueue()
-            }/*else{
-                bleControlManager.close()
-            }*/
+        if (bleControlManager.isConnected) {
+            bleControlManager.disconnect().done {
+                Log.i(TAG, "Disconnect done!")
+                startConnectionProcess()
+            }.fail { device, status ->
+                Log.e(TAG, "Disconnect fail! $device and $status")
+            }.enqueue()
+        }
     }
 
     override fun onEvent(event: String) {
@@ -388,7 +355,6 @@ class ScanningService @Inject constructor(
                     updateReportViewModel("Auto")
                 }
             }
-
             event.contains("Deleted") -> {
                 if (scanning.value) {
                     stopScanning()
@@ -396,7 +362,6 @@ class ScanningService @Inject constructor(
                     updateReportViewModel("Auto")
                 }
             }
-
             event.contains("Auto") -> {
                 letter = deviceTypeToLetter[sharedData.typeOfDevice.value.toString()].toString()
                 deviceTypeLetter.value = letter
@@ -410,14 +375,14 @@ class ScanningService @Inject constructor(
                         Log.e(TAG, "Invalid address range, retrying in 1 second")
                         connectionScope.launch {
                             delay(1000)
-                            onEvent("Auto") // Повторяем попытку через секунду
+                            onEvent("Auto")
                         }
                     }
                 } ?: run {
                     Log.e(TAG, "Address range is null, retrying in 1 second")
                     connectionScope.launch {
                         delay(1000)
-                        onEvent("Auto") // Повторяем попытку через секунду
+                        onEvent("Auto")
                     }
                 }
             }
