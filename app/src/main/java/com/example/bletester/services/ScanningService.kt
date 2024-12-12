@@ -105,6 +105,7 @@ class ScanningService @Inject constructor(
         if (savedRange != null && savedRange.first.toLong() == start && savedRange.second.toLong() == end) {
             Log.i(TAG, "Диапазон совпадает с сохраненным. Загружаем одобренные устройства.")
             checkedDevices.clear()
+            checkedDevicesUi.clear()
             approvedMacs.forEach { mac ->
                 adapter?.getRemoteDevice(mac)?.let { device ->
                     if (checkedDevices.none { it.address == device.address }) {
@@ -119,6 +120,7 @@ class ScanningService @Inject constructor(
             Log.i(TAG, "Диапазон не совпадает с сохраненным. Начинаем новое сканирование.")
             counter = ((end - start) + 1L).toInt()
             checkedDevices.clear()
+            checkedDevicesUi.clear()
         }
 
         toastMessage.value = "Сканирование!"
