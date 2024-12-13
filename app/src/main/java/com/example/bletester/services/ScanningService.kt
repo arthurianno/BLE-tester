@@ -232,22 +232,31 @@ class ScanningService @Inject constructor(
 
     @SuppressLint("MissingPermission")
     private fun processNextDevice() {
-        if (deviceQueue.isNotEmpty()) {
-            val currentDevice = deviceQueue.poll() ?: return
+        while (deviceQueue.isNotEmpty() && scanning.value && counter > 0) {
+            val currentDevice = deviceQueue.poll() ?: continue
+
+            // Добавлено логирование для отладки
             Log.d(TAG, "Processing device: ${currentDevice.address}, currentCount: $currentCount")
+
+            // Если имя устройства null, логируем и продолжаем обработку следующего устройства
             if (currentDevice.name == null) {
                 Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
-                return
+                continue  // Важное изменение: используем continue для перехода к следующему устройству
             }
+
             if (currentDevice.address !in bannedDevices.map { it.address }) {
                 currentCount++
                 connectionScope.launch {
                     connectToDevice(currentDevice)
                 }
+                break  // Выходим из цикла после запуска подключения к устройству
             }
-        } else {
-            Log.e(TAG, "Error: Queue is empty: ${deviceQueue.isEmpty()}")
-            isFirstConnect = true
+        }
+
+        // Проверяем завершение сканирования, если очередь пуста
+        if (deviceQueue.isEmpty() && counter == 0) {
+            stopScanning()
+            updateReportViewModel("Auto")
         }
     }
 
