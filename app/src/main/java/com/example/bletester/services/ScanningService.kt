@@ -319,6 +319,7 @@ class ScanningService @Inject constructor(
                 if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
                     if (checkedDevices.none { it.address == device.address }) {
                         checkedDevices.add(device)
+
                         checkedDevicesUi.add(device.name)
                         Log.d("ScanningService", "Devices in checkedDevices: ${checkedDevices.map { it.name to it.address }}")
                         Log.e(TAG, "Device : $device")
