@@ -42,6 +42,7 @@ class ScanningService @Inject constructor(
     val toastMessage = MutableStateFlow<String?>(null)
     private val deviceQueue = ConcurrentLinkedQueue<BluetoothDevice>()
     var foundDevices = mutableSetOf<BluetoothDevice>()
+    private val allDevices = mutableListOf<BluetoothDevice>()
     val unCheckedDevices = mutableStateListOf<BluetoothDevice>()
     val checkedDevices = mutableListOf<BluetoothDevice>()
     val checkedDevicesUi = mutableStateListOf<String>()
@@ -235,13 +236,13 @@ class ScanningService @Inject constructor(
         while (deviceQueue.isNotEmpty() && scanning.value && counter > 0) {
             val currentDevice = deviceQueue.poll() ?: continue
 
-            // Добавлено логирование для отладки
+
             Log.d(TAG, "Processing device: ${currentDevice.address}, currentCount: $currentCount")
 
-            // Если имя устройства null, логируем и продолжаем обработку следующего устройства
+
             if (currentDevice.name == null) {
                 Log.w(TAG, "Skipping device with null name: ${currentDevice.address}")
-                continue  // Важное изменение: используем continue для перехода к следующему устройству
+                continue
             }
 
             if (currentDevice.address !in bannedDevices.map { it.address }) {
@@ -249,11 +250,11 @@ class ScanningService @Inject constructor(
                 connectionScope.launch {
                     connectToDevice(currentDevice)
                 }
-                break  // Выходим из цикла после запуска подключения к устройству
+                break
             }
         }
 
-        // Проверяем завершение сканирования, если очередь пуста
+
         if (deviceQueue.isEmpty() && counter == 0) {
             stopScanning()
             updateReportViewModel("Auto")
@@ -261,7 +262,20 @@ class ScanningService @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
+    private fun getDeviceName(device: BluetoothDevice): String {
+        device.name?.let { return it }
+
+        allDevices.find { it.address == device.address }?.name?.let { return it }
+
+        return device.address
+    }
+
+    @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice) {
+        if (allDevices.none { it.address == device.address }) {
+            allDevices.add(device)
+        }
+
         try {
             bleControlManager.connect(device).retry(2, 200).await()
             Log.d(TAG, "Connected to device ${device.name ?: "Unknown"}")
@@ -288,12 +302,12 @@ class ScanningService @Inject constructor(
             override fun onPinCheck(device: BluetoothDevice, pin: String) {
                 when {
                     pin.contains("pin.ok") -> {
-                        Log.i("MyBleCallback", "Pin code is correct for device ${device.name}")
+                        Log.i(TAG, "Pin code is correct for device ${device.name}")
                         bleControlManager.sendCommand(device, "serial", EntireCheck.HW_VER)
-                        Log.d("MyBleCallback", "sendCommand SERIAL to device ${device.name ?: "Unknown"}")
+                        Log.d(TAG, "sendCommand SERIAL to device ${device.name ?: "Unknown"}")
                     }
                     pin.contains("pin.error") -> {
-                        Log.e("MyBleCallback", "Pin is error for device ${device.address}")
+                        Log.e(TAG, "Pin is error for device ${device.address}")
                         bannedDevices.add(device)
                         disconnectAndCleanup()
                     }
@@ -306,12 +320,12 @@ class ScanningService @Inject constructor(
 
             @SuppressLint("MissingPermission")
             override fun onVersionCheck(device: BluetoothDevice, version: String) {
-                Log.e("MyBleCallback", "Version: $version for device ${device.name}")
+                Log.e(TAG, "Version: $version for device ${device.name}")
                 val versionPrefix = version.firstOrNull()
                 val versionNumber = version.substring(1).toLongOrNull()
 
                 if (versionPrefix == null || versionNumber == null) {
-                    Log.e("MyBleCallback", "Invalid version format or no connected device")
+                    Log.e(TAG, "Invalid version format or no connected device")
                     disconnectAndCleanup()
                     return
                 }
@@ -319,10 +333,8 @@ class ScanningService @Inject constructor(
                 if (versionNumber in startR..endR && versionPrefix.toString().contains(letter)) {
                     if (checkedDevices.none { it.address == device.address }) {
                         checkedDevices.add(device)
-
-                        checkedDevicesUi.add(device.name)
-                        Log.d("ScanningService", "Devices in checkedDevices: ${checkedDevices.map { it.name to it.address }}")
-                        Log.e(TAG, "Device : $device")
+                        val safeName = getDeviceName(device)
+                        checkedDevicesUi.add(safeName)
                     } else {
                         Log.e(TAG, "Device with the same address already exists: ${device.address}")
                     }
@@ -333,13 +345,13 @@ class ScanningService @Inject constructor(
                             iniUtil.updateSummaryFileDynamically(checkedDevices.size)
                             iniUtil.updateCurrentFileDynamically(device)
                         } catch (e: Exception) {
-                            Log.e("MyBleCallback", "Error updating summary file: ${e.message}")
+                            Log.e(TAG, "Error updating summary file: ${e.message}")
                         }
                     }
                     bleControlManager.sendCommand(device, "ble.off", EntireCheck.default_command)
                     disconnectAndCleanup()
                 } else {
-                    Log.d("MyBleCallback", "Device serial number out of range. Added to banned list.")
+                        Log.d(TAG, "Device serial number out of range. Added to banned list.")
                     bannedDevices.add(device)
                     disconnectAndCleanup()
                 }
